@@ -1,14 +1,15 @@
 #!/bin/sh
 
+PROJECT_ROOT=$(dirname "$0")
 KERNEL_PATH=$1
 
 echo "Building ISO Image with kernel: $KERNEL_PATH"
 
-mkdir -p isodir/boot/grub
-cp $KERNEL_PATH isodir/boot/
-cp grub.cfg isodir/boot/grub/
+mkdir -p $PROJECT_ROOT/isodir/boot/grub
+cp $KERNEL_PATH $PROJECT_ROOT/isodir/boot/kernel
+cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/isodir/boot/grub/
 
-grub-mkrescue -o ros.iso isodir 2> /dev/null
+grub-mkrescue -o ros.iso $PROJECT_ROOT/isodir
 
 echo "Launching QEMU"
-qemu-system-i386 -cdrom ros.iso
+qemu-system-x86_64 -enable-kvm -cdrom ros.iso

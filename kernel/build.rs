@@ -6,11 +6,11 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_file = PathBuf::from(&out_dir).join("boot.o");
 
-    println!("cargo:rerun-if-changed=src/arch/i686/boot.asm");
+    println!("cargo:rerun-if-changed=src/arch/x86_64/boot.asm");
     println!("cargo:rerun-if-changed=linker.ld");
 
     let status = Command::new("nasm")
-        .args(["-f", "elf32", "src/arch/i686/boot.asm", "-o", out_file.to_str().unwrap()])
+        .args(["-f", "elf64", "src/arch/x86_64/boot.asm", "-o", out_file.to_str().unwrap()])
         .status()
         .expect("Failed to execute nasm. Make sure it is installed.");
 

@@ -2,3 +2,10 @@
 name = "kernel"
 version = "0.1.0"
 edition = "2024"
+
+[dependencies]
+bit_field = "0.10.3"
+bitflags = "2.11.0"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+spin = "0.10.0"
+x86_64 = "0.15.4"
