@@ -31,6 +31,8 @@ p3_tbl:
     resb 4096
 p2_tbl:
     resb 4096
+p1_tbl:
+    resb 4096
 
 align 16
 stack_bottom:
@@ -91,25 +93,58 @@ setup_page_tbl:
     or eax, 0b11 ; present and R/W
     ; set the first entry of the P4 table to point to the P3 table
     mov dword [p4_tbl + 0], eax
+    mov dword [p4_tbl + 4], 0
 
     ;; P3 table
     mov eax, p2_tbl
     or eax, 0b11 ; present and R/W
     ; set the first entry of the P3 table to point to the P2 table
     mov dword [p3_tbl + 0], eax
+    mov dword [p3_tbl + 4], 0
 
     ;; P2 table
+    mov eax, p1_tbl
+    or eax, 0b11
+    ;set the first entry of the P2 table to point to the P1 table
+    mov dword [p2_tbl + 0], eax
+    mov dword [p2_tbl + 4], 0
+
     ; point each P2 table entry to a 2 MiB page
-    mov ecx, 0 ; counter variable
+;     mov ecx, 0 ; counter variable
+; .map_p2_tbl:
+;     mov eax, 0x200000  ; 2 MiB
+;     mul ecx            ; eax = 2 MiB * ecx
+;     or eax, 0b10000011 ; present, R/W, page size
+;     mov [p2_tbl + ecx * 8], eax
+;     mov [p2_tbl + ecx * 8 + 4], 0
+;
+;     inc ecx,
+;     cmp ecx, 512 ; there are 4096 / 8 = 512 entries in a page table
+;     jne .map_p2_tbl
+
+   ;; map the rest of P2 as 2 MiB huge pages
+    mov ecx, 1 ; Start at 1 because entry 0 is the P1 table
 .map_p2_tbl:
     mov eax, 0x200000 ; 2 MiB
-    mul ecx ; eax = 2 MiB * ecx
-    or eax, 0b10000011 ; present, R/W, page size
+    mul ecx
+    or eax, 0b10000011 ; present, writable, huge page
     mov [p2_tbl + ecx * 8], eax
-
-    inc ecx,
-    cmp ecx, 512 ; there are 4096 / 8 = 512 entries in a page table
+    inc ecx
+    cmp ecx, 512
     jne .map_p2_tbl
+
+    ;; map P1 table (first 2 MiB as 4 KiB pages)
+    mov ecx, 1 ; start at 1 to leave 0x0 unmapped!
+.map_p1_tbl:
+    mov eax, 0x1000 ; 4 KiB
+    mul ecx         ; eax = 4 KiB * ecx
+    or eax, 0b11    ; present, writable
+    mov dword [p1_tbl + ecx * 8], eax
+    mov dword [p1_tbl + ecx * 8 + 4], 0
+
+    inc ecx
+    cmp ecx, 512
+    jne .map_p1_tbl
 
     ret
 
