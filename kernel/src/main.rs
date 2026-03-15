@@ -33,10 +33,6 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     interrupts::init();
     println!("Hello, World!");
 
-    unsafe {
-        asm!("syscall");
-    }
-
     let boot_info = unsafe {
         mb2::BootInformation::load(multiboot_info_addr as *const mb2::BootInformationHeader)
     }

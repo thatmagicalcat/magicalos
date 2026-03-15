@@ -9,7 +9,7 @@ mkdir -p $PROJECT_ROOT/isodir/boot/grub
 cp $KERNEL_PATH $PROJECT_ROOT/isodir/boot/kernel
 cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/isodir/boot/grub/
 
-grub-mkrescue -o ros.iso $PROJECT_ROOT/isodir
+grub-mkrescue -o magical.iso $PROJECT_ROOT/isodir
 
 echo "Launching QEMU"
-qemu-system-x86_64 -m 2G -enable-kvm -cdrom ros.iso
+qemu-system-x86_64 -m 2G -enable-kvm -cdrom magical.iso
