@@ -1,9 +1,11 @@
-use crate::memory::{BitmapFrameAllocator, Frame};
+use core::arch::asm;
+
 use super::{
-    entry::EntryFlags,
-    table::{PageTable, L4, ENTRIES_PER_TABLE},
     PhysicalAddress, VirtualAddress,
+    entry::EntryFlags,
+    table::{ENTRIES_PER_TABLE, L4, PageTable},
 };
+use crate::memory::{BitmapFrameAllocator, Frame, FrameAllocator};
 
 pub const P4: *mut PageTable<L4> = 0xFFFFFFFFFFFFF000 as *mut _;
 
@@ -24,8 +26,8 @@ impl ActivePageTable {
         unsafe { &mut *self.p4 }
     }
 
-    pub fn translate(&self, virt_addr: VirtualAddress) -> Option<PhysicalAddress> {
-        let p3 = unsafe { &*P4 }.next_table(virt_addr.p4_idx() as _);
+    pub fn translate(&mut self, virt_addr: VirtualAddress) -> Option<PhysicalAddress> {
+        let p3 = self.p4_mut().next_table(virt_addr.p4_idx() as _);
         let huge_pages = || {
             p3.and_then(|p3| {
                 let p3_entry = &p3[virt_addr.p3_idx()];
@@ -66,17 +68,39 @@ impl ActivePageTable {
     }
 
     pub fn map_to(
+        &mut self,
         page: VirtualAddress,
         frame: Frame,
         flags: EntryFlags,
         allocator: &mut BitmapFrameAllocator,
     ) {
-        let p4 = unsafe { &mut *P4 };
+        let p4 = self.p4_mut();
         let mut p3 = p4.next_table_create(page.p4_idx() as _, allocator);
         let mut p2 = p3.next_table_create(page.p3_idx() as _, allocator);
         let mut p1 = p2.next_table_create(page.p2_idx() as _, allocator);
 
         assert!(p1[page.p1_idx()].is_unused());
         p1[page.p1_idx()].set(frame, flags | EntryFlags::PRESENT);
+    }
+
+    pub fn unmap(&mut self, page: VirtualAddress, allocator: &mut BitmapFrameAllocator) {
+        assert!(self.translate(page).is_some());
+
+        let p1 = self
+            .p4_mut()
+            .next_table_mut(page.p4_idx())
+            .and_then(|p3| p3.next_table_mut(page.p3_idx()))
+            .and_then(|p2| p2.next_table_mut(page.p2_idx()))
+            .expect("mapping code does not support huge pages");
+        let frame = p1[page.p1_idx()].get_pointed_frame().unwrap();
+
+        p1[page.p1_idx()].set_unused();
+
+        // TODO: deallocate empty page tables
+        // but this is very expensive to do on every unmap...
+
+        allocator.deallocate_frame(frame);
+
+        unsafe { asm!("invlpg [{}]", in(reg) *page, options(nostack, preserves_flags)) };
     }
 }

@@ -4,7 +4,7 @@ use core::{
 };
 
 use super::entry::{EntryFlags, PageTableEntry};
-use crate::memory::BitmapFrameAllocator;
+use crate::memory::{BitmapFrameAllocator, FrameAllocator};
 
 pub const ENTRIES_PER_TABLE: usize = 512;
 
