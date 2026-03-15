@@ -22,7 +22,6 @@ gdt64:
     dw .pointer - gdt64 - 1
     dq gdt64
 
-; I'll be using 2 MiB pages so I only need 3 tables
 section .bss
 align 4096
 p4_tbl:
