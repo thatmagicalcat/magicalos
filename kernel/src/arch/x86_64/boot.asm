@@ -88,6 +88,12 @@ setup_page_tbl:
     ; 52-62 - available: can be used freely by the OS
     ; 63 - no execute: forbid executing code on this page (the NXE bit in the EFER register must be set)
 
+    ; recursively map the 511th entry of P4 to itself
+    mov eax, p4_tbl
+    or eax, 0b11 ; present + writable
+    mov dword [p4_tbl + 511 * 8], eax
+    mov dword [p4_tbl + 511 * 8 + 4], 0
+
     ;; P4 table
     mov eax, p3_tbl
     or eax, 0b11 ; present and R/W
