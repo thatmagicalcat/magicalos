@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![allow(unused)]
 #![warn(clippy::missing_const_for_fn)]
 #![feature(abi_x86_interrupt)]
 #![feature(custom_test_frameworks)]
@@ -11,16 +10,9 @@ unsafe extern "C" {
     safe static kernel_end: [u8; 0];
 }
 
-use core::{arch::asm, fmt::Write, ptr};
-
 use multiboot2 as mb2;
 
-use vga_buffer::{Buffer, Color, Writer};
-
-use crate::memory::{
-    FrameAllocator,
-    paging::{self, EntryFlags, VirtualAddress},
-};
+use vga_buffer::Color;
 
 mod interrupts;
 mod macros;
@@ -38,39 +30,10 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     }
     .expect("Failed to load multiboot info");
 
-    // print_memory_areas(&boot_info);
+    let mut allocator = memory::BitmapFrameAllocator::new(&boot_info);
 
-    let mut frame_allocator = memory::BitmapFrameAllocator::new(&boot_info);
-    let mut active_page_tbl = paging::ActivePageTable::new();
-    let addr = VirtualAddress(42 * 512 * 512 * 4096); // 42th P3 entry
-    let frame = frame_allocator
-        .allocate_frame()
-        .expect("Failed to allocate frame");
-    println!(
-        "[1] Virtual: {:p}, mapped to {:?}",
-        *addr as *const (), frame
-    );
-
-    active_page_tbl.map_to(addr, frame, EntryFlags::empty(), &mut frame_allocator);
-    println!(
-        "[2] Physical address: {:?}",
-        active_page_tbl.translate(addr).map(|p| *p as *const ())
-    );
-    println!("[3] {:?} address: {:?}", frame, frame.get_ptr());
-    println!("[4] Read before unmap: {}", unsafe {
-        ptr::read_volatile(*addr as *const u64)
-    });
-    println!(
-        "[5] Next free frame: {:?}",
-        frame_allocator.allocate_frame()
-    );
-
-    active_page_tbl.unmap(addr, &mut frame_allocator);
-
-    // try to read the unmapped address, should cause a page fault
-    println!("[5] Read after unmap: {}", unsafe {
-        ptr::read_volatile(*addr as *const u64)
-    });
+    let _old_page_table = memory::paging::remap::kernel(&mut allocator, &boot_info);
+    println!("IT DIDN'T CRASH!");
 
     #[allow(clippy::empty_loop)]
     loop {}
@@ -95,12 +58,10 @@ fn print_memory_areas(boot_info: &multiboot2::BootInformation<'_>) {
 
 /// Returns the start and end addresses of the kernel in memory.
 pub fn kernel_bounds() -> (usize, usize) {
-    unsafe {
-        (
-            &kernel_start as *const _ as usize,
-            &kernel_end as *const _ as usize,
-        )
-    }
+    (
+        &kernel_start as *const _ as usize,
+        &kernel_end as *const _ as usize,
+    )
 }
 
 #[panic_handler]
