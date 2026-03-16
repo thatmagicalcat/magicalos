@@ -13,7 +13,7 @@ impl<const N: usize> TinyAllocator<N> {
         }
     }
 
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self { frames: [None; N] }
     }
 
