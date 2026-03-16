@@ -22,5 +22,9 @@ SECTIONS {
         *(.bss .bss.*)
     }
 
+    .got : ALIGN(4K) {
+        *(.got .got.*)
+    }
+
     kernel_end = .;
 }
