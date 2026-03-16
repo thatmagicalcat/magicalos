@@ -12,4 +12,7 @@ cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/isodir/boot/grub/
 grub-mkrescue -o magical.iso $PROJECT_ROOT/isodir
 
 echo "Launching QEMU"
-qemu-system-x86_64 -m 2G -enable-kvm -cdrom magical.iso
+qemu-system-x86_64     \
+    -m 2G              \
+    -enable-kvm        \
+    -cdrom magical.iso
