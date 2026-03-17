@@ -3,11 +3,17 @@ use core::ops::Range;
 use multiboot2::MemoryAreaType;
 use x86_64::structures::paging::frame;
 
-use crate::{kernel_bounds, memory::FrameAllocator};
+use crate::{
+    kernel_bounds,
+    memory::{
+        FrameAllocator,
+        paging::{EntryFlags, Mapper, VirtualAddress},
+    },
+};
 
 use super::{Frame, PAGE_SIZE};
 
-const USED: u8 = !0;
+const USED: u8 = !FREE;
 const FREE: u8 = 0;
 
 pub struct BitmapFrameAllocator {
@@ -85,12 +91,8 @@ impl BitmapFrameAllocator {
         self.bitmap_slice
             .iter()
             .enumerate()
-            // start searching from the last allocated frame to improve performance
             .skip(offset)
-            // if bitmap byte is 0xFF, all frames in that byte are used, so skip it
-            .filter(|(_, byte)| **byte != !0) 
-            // once we stumble upon a byte that is not 0xFF, find the first free frame in that
-            // byte, that offset is just the number of trailing ones in that byte
+            .filter(|(_, byte)| **byte != !0)
             .map(|(byte_idx, byte)| Frame(byte_idx * 8 + byte.trailing_ones() as usize))
             .next()
             .inspect(|&Frame(frame_idx)| {
@@ -156,5 +158,11 @@ impl FrameAllocator for BitmapFrameAllocator {
         }
 
         self.mark_frame_free(frame_index);
+    }
+
+    fn bounds(&self) -> (usize, usize) {
+        let start = self.bitmap_slice.as_ptr() as usize;
+        let end = start + self.bitmap_slice.len();
+        (start, end)
     }
 }

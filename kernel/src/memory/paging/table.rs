@@ -227,6 +227,14 @@ impl ActivePageTable {
 
         old_table
     }
+
+    pub const fn mapper(&self) -> &Mapper {
+        &self.mapper
+    }
+
+    pub const fn mapper_mut(&mut self) -> &mut Mapper {
+        &mut self.mapper
+    }
 }
 
 impl Deref for ActivePageTable {

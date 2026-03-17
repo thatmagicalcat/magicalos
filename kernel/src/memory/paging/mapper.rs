@@ -84,6 +84,14 @@ impl Mapper {
         p1[page.p1_idx()].set(frame, flags | EntryFlags::PRESENT);
     }
 
+    pub fn map<A>(&mut self, page: VirtualAddress, flags: EntryFlags, allocator: &mut A)
+    where
+        A: FrameAllocator,
+    {
+        let frame = allocator.allocate_frame().expect("out of memory");
+        self.map_to(page, frame, flags, allocator)
+    }
+
     #[must_use]
     pub fn unmap(&mut self, page: VirtualAddress) -> Frame {
         assert!(self.translate(page).is_some());

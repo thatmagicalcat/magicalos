@@ -26,5 +26,13 @@ SECTIONS {
         *(.got .got.*)
     }
 
+    .eh_frame : ALIGN(4K) {
+        *(.eh_frame .eh_frame.*)
+    }
+
+    .eh_frame_hdr : ALIGN(4K) {
+        *(.eh_frame_hdr .eh_frame_hdr.*)
+    }
+
     kernel_end = .;
 }
