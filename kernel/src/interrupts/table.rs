@@ -64,7 +64,10 @@ pub type HandlerFn = extern "C" fn() -> !;
 
 impl Entry {
     pub fn new(gdt_selector: SegmentSelector, handler: HandlerFn) -> Self {
-        let ptr = handler as usize;
+        // split into 3 parts
+        // low, mid, high
+        let ptr = handler as usize; 
+
         Self {
             pointer_low: ptr as u16,
             gdt_selector,
