@@ -54,7 +54,8 @@ _start:
     call check_long_mode
     call setup_page_tbl
     call enable_paging
-    call load_gdt
+
+    lgdt [gdt64.pointer]
 
     ; update sectors
     mov ax, gdt64.data
@@ -64,12 +65,6 @@ _start:
 
     ; LEAP OF FAITH!
     jmp gdt64.code:long_mode_start
-
-load_gdt:
-    ; load GDT
-    lgdt [gdt64.pointer]
-
-    ret
 
 setup_page_tbl:
     ; bit range

@@ -2,22 +2,17 @@
 #![no_main]
 #![feature(allocator_api)]
 #![warn(clippy::missing_const_for_fn)]
+#![allow(clippy::empty_loop)]
 
 extern crate alloc;
 
-unsafe extern "C" {
-    static kernel_start: [u8; 0];
-    static kernel_end: [u8; 0];
-}
-
 use alloc::{collections::BTreeMap, vec};
+use memory::paging::ActivePageTable;
 use multiboot2 as mb2;
-
 use vga_buffer::Color;
 
-use crate::memory::paging::ActivePageTable;
-
 mod interrupts;
+mod gdt;
 mod macros;
 mod memory;
 mod utils;
@@ -27,7 +22,19 @@ mod volatile;
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     interrupts::init();
+    gdt::init();
+
     println!("Hello, World!");
+
+    // unsafe {
+    //     core::arch::asm! {
+    //         "call 2f",
+    //         "2:",
+    //         "call 2b",
+    //
+    //         options(nomem, noreturn)
+    //     }
+    // };
 
     let boot_info = unsafe {
         mb2::BootInformation::load(multiboot_info_addr as *const mb2::BootInformationHeader)
@@ -39,18 +46,23 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     let mut active_table = ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
 
-    /////////////////
     let mut v = vec![1, 2, 3];
     v.push(69);
+
+    println!("{v:?}");
 
     let mut map = BTreeMap::new();
     map.insert("A", 1);
     map.insert("B", 2);
 
-    println!("{v:?}\n{map:?}");
+    println!("{map:?}");
 
-    #[allow(clippy::empty_loop)]
     loop {}
+}
+
+unsafe extern "C" {
+    static kernel_start: [u8; 0];
+    static kernel_end: [u8; 0];
 }
 
 /// Returns the start and end addresses of the kernel in memory.
@@ -82,10 +94,14 @@ fn print_memory_areas(boot_info: &multiboot2::BootInformation<'_>) {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    vga_buffer::WRITER
-        .lock()
-        .set_color(Color::LightRed, Color::Black);
-    println!("Panic: {}", info);
+    let mut writer_lock = vga_buffer::WRITER.lock();
+
+    writer_lock.change_screen_colors(Color::White, Color::Red);
+    writer_lock.set_color(Color::Yellow, Color::Red);
+
+    drop(writer_lock);
+
+    print!("=== KERNEL PANIC ===\n{}", info);
 
     loop {}
 }
