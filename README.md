@@ -11,3 +11,6 @@ cargo run --release
 ```
 
 It should compile the OS, create an ISO and run it in qemu.
+
+## ToDos:
+![todos](./todo.md)
