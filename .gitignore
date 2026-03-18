@@ -1,2 +1,4 @@
 /target
 kernel/target
+isodir
+*.iso
