@@ -4,7 +4,6 @@ use core::{
 };
 
 use spin::{Mutex, MutexGuard};
-use x86_64::structures::gdt::Entry;
 
 use crate::{
     memory::{Frame, FrameAllocator, PAGE_SIZE, paging::{EntryFlags, Mapper, VirtualAddress}},

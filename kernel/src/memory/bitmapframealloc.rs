@@ -1,14 +1,10 @@
 use core::ops::Range;
 
 use multiboot2::MemoryAreaType;
-use x86_64::structures::paging::frame;
 
 use crate::{
     kernel_bounds,
-    memory::{
-        FrameAllocator,
-        paging::{EntryFlags, Mapper, VirtualAddress},
-    },
+    memory::FrameAllocator,
 };
 
 use super::{Frame, PAGE_SIZE};

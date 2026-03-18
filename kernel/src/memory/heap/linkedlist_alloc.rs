@@ -1,6 +1,6 @@
 use core::{alloc::Layout, ptr::NonNull};
 
-use crate::{println, utils::align_up};
+use crate::utils::align_up;
 
 struct FreeBlock {
     size: usize,

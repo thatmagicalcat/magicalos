@@ -1,10 +1,6 @@
 use core::arch::asm;
-
 use bit_field::BitField;
-use x86_64::{
-    PrivilegeLevel, instructions::segmentation, registers::segmentation::Segment,
-    structures::gdt::SegmentSelector,
-};
+use crate::utils::read_cs;
 
 pub struct Idt(pub [Entry; 256]);
 
@@ -14,7 +10,7 @@ impl Idt {
     }
 
     pub fn set_handler(&mut self, entry: u8, handler: HandlerFn) {
-        self.0[entry as usize] = Entry::new(segmentation::CS::get_reg(), handler);
+        self.0[entry as usize] = Entry::new(SegmentSelector(read_cs()), handler);
     }
 
     pub fn load(&'static self) {
@@ -24,6 +20,26 @@ impl Idt {
         };
 
         unsafe { asm!("lidt [{}]", in(reg) &ptr, options(readonly, nostack, preserves_flags)) };
+    }
+}
+
+bitflags::bitflags! {
+    struct PrivilegeLevel: u16 {
+        const RING0 = 0;
+        const RING1 = 1;
+        const RING2 = 2;
+        const RING3 = 3;
+    }
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+pub struct SegmentSelector(pub u16);
+
+impl SegmentSelector {
+    #[inline]
+    pub const fn new(index: u16, rpl: PrivilegeLevel) -> SegmentSelector {
+        Self((index << 3) | rpl.bits())
     }
 }
 
@@ -62,7 +78,7 @@ impl Entry {
     fn missing() -> Entry {
         Entry {
             pointer_low: 0,
-            gdt_selector: SegmentSelector::new(0, PrivilegeLevel::Ring0),
+            gdt_selector: SegmentSelector::new(0, PrivilegeLevel::RING0),
             options: EntryOptions::minimal(),
             pointer_middle: 0,
             pointer_high: 0,

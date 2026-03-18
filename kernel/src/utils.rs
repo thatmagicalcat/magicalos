@@ -11,3 +11,16 @@ pub fn align_down(addr: usize, align: usize) -> usize {
 pub fn align_up(addr: usize, align: usize) -> usize {
     align_down(addr + align - 1, align)
 }
+
+pub fn read_cs() -> u16 {
+    let cs: u16;
+    unsafe {
+        core::arch::asm!(
+            "mov {0:x}, cs",
+            out(reg) cs,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+
+    cs
+}
