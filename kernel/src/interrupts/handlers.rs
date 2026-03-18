@@ -35,7 +35,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_co
 
         panic!(
             "\nEXCEPTION: PAGE FAULT while accessing {:#x}\nError code: {:?}\n{:#?}",
-            value,
+            x86_64::registers::control::Cr2::read().unwrap_unchecked(),
             PageFaultErrorCode::from_bits(error_code).unwrap_unchecked(),
             stack_frame
         );
