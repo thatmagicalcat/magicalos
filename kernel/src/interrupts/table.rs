@@ -9,8 +9,9 @@ impl Idt {
         Idt([Entry::missing(); _])
     }
 
-    pub fn set_handler(&mut self, entry: u8, handler: HandlerFn) {
+    pub fn set_handler(&mut self, entry: u8, handler: HandlerFn) -> &mut Entry {
         self.0[entry as usize] = Entry::new(SegmentSelector(read_cs()), handler);
+        &mut self.0[entry as usize]
     }
 
     pub fn load(&'static self) {
@@ -87,6 +88,10 @@ impl Entry {
             pointer_high: 0,
             reserved: 0,
         }
+    }
+
+    pub const fn options_mut(&mut self) -> &mut EntryOptions {
+        &mut self.options
     }
 }
 

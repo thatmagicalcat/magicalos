@@ -6,9 +6,11 @@ pub use idt::IDT;
 
 #[macro_use]
 mod macros;
-mod table;
-mod idt;
 mod handlers;
+mod idt;
+mod table;
+
+pub use idt::{Tss, TSS};
 
 pub fn init() {
     IDT.load();
@@ -24,4 +26,3 @@ bitflags! {
         const INSTRUCTION_FETCH = 1 << 4;
     }
 }
-

@@ -41,3 +41,10 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_co
         );
     }
 }
+
+pub extern "C" fn double_fault_handler(stack_frame: &ExceptionStackFrame, error_code: u64) -> ! {
+    panic!(
+        "\nEXCEPTION: DOUBLE FAULT\nError code: {error_code}\n{:#?}",
+        stack_frame
+    );
+}
