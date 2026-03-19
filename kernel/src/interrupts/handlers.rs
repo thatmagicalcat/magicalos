@@ -28,7 +28,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_co
 
     unsafe {
         asm! {
-            "mov {}, cr3",
+            "mov {}, cr2",
             out(reg) value,
             options(nomem, nostack, preserves_flags)
         };
