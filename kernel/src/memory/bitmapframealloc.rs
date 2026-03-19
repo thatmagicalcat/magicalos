@@ -2,10 +2,7 @@ use core::ops::Range;
 
 use multiboot2::MemoryAreaType;
 
-use crate::{
-    kernel_bounds,
-    memory::FrameAllocator,
-};
+use crate::{kernel_bounds, memory::FrameAllocator};
 
 use super::{Frame, PAGE_SIZE};
 
@@ -20,7 +17,7 @@ pub struct BitmapFrameAllocator {
 
 impl BitmapFrameAllocator {
     pub fn new(boot_info: &multiboot2::BootInformation) -> Self {
-        let (_, kernel_end) = kernel_bounds();
+        let kernel_end = kernel_bounds().end;
         let memory_areas = boot_info
             .memory_map_tag()
             .expect("Memory map tag not found")
@@ -62,8 +59,8 @@ impl BitmapFrameAllocator {
             });
 
         // mark the memory used by kernel as used
-        let kernel_start_frame = kernel_bounds().0 / PAGE_SIZE;
-        let kernel_end_frame = kernel_bounds().1.div_ceil(PAGE_SIZE);
+        let kernel_start_frame = kernel_bounds().start / PAGE_SIZE;
+        let kernel_end_frame = kernel_bounds().end.div_ceil(PAGE_SIZE);
         allocator.mark_frames_used(kernel_start_frame..kernel_end_frame);
 
         // mark the multiboot info structure as used

@@ -65,13 +65,18 @@ unsafe extern "C" {
     static kernel_end: [u8; 0];
 }
 
+pub struct KernelBounds {
+    pub start: usize,
+    pub end: usize,
+}
+
 /// Returns the start and end addresses of the kernel in memory.
-pub fn kernel_bounds() -> (usize, usize) {
+pub fn kernel_bounds() -> KernelBounds {
     unsafe {
-        (
-            &kernel_start as *const _ as usize,
-            &kernel_end as *const _ as usize,
-        )
+        KernelBounds {
+            start: kernel_start.as_ptr() as usize,
+            end: kernel_end.as_ptr() as usize,
+        }
     }
 }
 

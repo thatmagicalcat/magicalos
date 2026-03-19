@@ -1,9 +1,9 @@
 use super::{VirtualAddress, entry::EntryFlags};
 
-use crate::memory::{
+use crate::{kernel_bounds, memory::{
     Frame, FrameAllocator, PAGE_SIZE,
     paging::{ActivePageTable, InactivePageTable},
-};
+}};
 
 pub fn kernel<A>(allocator: &mut A, boot_info: &multiboot2::BootInformation) -> InactivePageTable
 where
