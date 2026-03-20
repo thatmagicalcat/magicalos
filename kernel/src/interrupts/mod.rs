@@ -40,3 +40,35 @@ pub fn interrupts_enabled() -> bool {
 
     rflags & (1 << 9) != 0
 }
+
+#[inline(always)]
+pub fn disable_interrupts() {
+    unsafe {
+        core::arch::asm!("cli", options(nomem, nostack, preserves_flags));
+    }
+}
+
+#[inline(always)]
+pub fn enable_interrupts() {
+    unsafe {
+        core::arch::asm!("sti", options(nomem, nostack, preserves_flags));
+    }
+}
+
+pub fn without_interrupts<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let was_enabled = interrupts_enabled();
+    if was_enabled {
+        disable_interrupts();
+    }
+
+    let r = f();
+
+    if was_enabled {
+        enable_interrupts();
+    }
+
+    r
+}
