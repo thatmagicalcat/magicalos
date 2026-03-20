@@ -1,9 +1,12 @@
 use super::{VirtualAddress, entry::EntryFlags};
 
-use crate::{kernel_bounds, memory::{
-    Frame, FrameAllocator, PAGE_SIZE,
-    paging::{ActivePageTable, InactivePageTable},
-}};
+use crate::{
+    apic,
+    memory::{
+        Frame, FrameAllocator, PAGE_SIZE,
+        paging::{ActivePageTable, InactivePageTable},
+    },
+};
 
 pub fn kernel<A>(allocator: &mut A, boot_info: &multiboot2::BootInformation) -> InactivePageTable
 where
@@ -21,9 +24,22 @@ where
         map_vga_buffer(mapper, allocator);
         map_multiboot_info(boot_info, mapper, allocator);
         map_allocator(mapper, allocator);
+        map_lapic(mapper, allocator);
     });
 
     active_page_tbl.switch_table(new_table)
+}
+
+fn map_lapic<A: FrameAllocator>(mapper: &mut super::Mapper, allocator: &mut A) {
+    let lapic_addr = apic::LAPIC_PHYSICAL_ADDRESS_DEFAULT;
+    let lapic_frame = Frame::from_addr(lapic_addr);
+    let page = VirtualAddress(lapic_addr as _);
+    let flags = EntryFlags::WRITABLE
+        | EntryFlags::WRITE_THROUGH
+        | EntryFlags::CACHE_DISABLE
+        | EntryFlags::PRESENT;
+
+    mapper.map_to(page, lapic_frame, flags, allocator);
 }
 
 fn map_allocator<A: FrameAllocator>(mapper: &mut super::Mapper, allocator: &mut A) {

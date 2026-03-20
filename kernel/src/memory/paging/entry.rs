@@ -9,8 +9,8 @@ bitflags::bitflags! {
         const PRESENT         = 1 << 0;
         const WRITABLE        = 1 << 1;
         const USER_ACCESSIBLE = 1 << 2;
-        const WRITE_THROUGH   = 1 << 3;
-        const CACHE_DISABLE   = 1 << 4;
+        const WRITE_THROUGH   = 1 << 3; // PWT
+        const CACHE_DISABLE   = 1 << 4; // PCD
         const ACCESSED        = 1 << 5;
         const DIRTY           = 1 << 6;
         const HUGE_PAGE       = 1 << 7;

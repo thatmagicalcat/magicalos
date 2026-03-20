@@ -108,12 +108,9 @@ impl GdtEntry {
         let ptr = tss as *const _ as u64;
 
         let mut low = DescriptorFlags::PRESENT.bits();
-        // base
         low.set_bits(16..40, ptr.get_bits(0..24));
         low.set_bits(56..64, ptr.get_bits(24..32));
-        // limit (the `-1` in needed since the bound is inclusive)
         low.set_bits(0..16, (size_of::<Tss>() - 1) as u64);
-        // type (0b1001 = available 64-bit tss)
         low.set_bits(40..44, 0b1001);
 
         let mut high = 0;

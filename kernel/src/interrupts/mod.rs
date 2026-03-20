@@ -10,7 +10,7 @@ mod handlers;
 mod idt;
 mod table;
 
-pub use idt::{Tss, TSS};
+pub use idt::*;
 
 pub fn init() {
     IDT.load();
@@ -25,4 +25,18 @@ bitflags! {
         const MALFORMED_TABLE = 1 << 3;
         const INSTRUCTION_FETCH = 1 << 4;
     }
+}
+
+pub fn interrupts_enabled() -> bool {
+    let rflags: u64;
+    unsafe {
+        core::arch::asm!(
+            "pushfq",
+            "pop {0}",
+            out(reg) rflags,
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+
+    rflags & (1 << 9) != 0
 }

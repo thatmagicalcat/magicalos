@@ -1,5 +1,7 @@
 use core::arch::asm;
 
+use crate::{apic, print};
+
 use super::*;
 
 #[derive(Debug)]
@@ -24,10 +26,6 @@ pub extern "C" fn divide_by_zero_handler(stack_frame: &ExceptionStackFrame) {
 }
 
 pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_code: u64) {
-    unsafe {
-        core::ptr::read_volatile(0xDEAD_BEEF_CAFE_BABE as *mut u64);
-    }
-
     let value: u64;
 
     unsafe {
@@ -51,4 +49,16 @@ pub extern "C" fn double_fault_handler(stack_frame: &ExceptionStackFrame, error_
         "\nEXCEPTION: DOUBLE FAULT\nError code: {error_code}\n{:#?}",
         stack_frame
     );
+}
+
+pub extern "C" fn spurious_interrupt_handler(stack_frame: &ExceptionStackFrame) {
+    println!(
+        "\nEXCEPTION: SPURIOUS INTERRUPT at {:#X}\n{:#?}",
+        stack_frame.instr_ptr, stack_frame
+    );
+}
+
+pub extern "C" fn apic_timer_handler(_stack_frame: &ExceptionStackFrame) {
+    apic::send_eoi();
+    print!(".");
 }

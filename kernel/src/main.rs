@@ -6,27 +6,28 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, vec};
 use memory::paging::ActivePageTable;
 use multiboot2 as mb2;
 use vga_buffer::Color;
 
+use crate::utils::enable_interrupts;
+
+mod apic;
 mod gdt;
 mod interrupts;
 mod macros;
 mod memory;
+mod port;
 mod utils;
 mod vga_buffer;
 mod volatile;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
-    interrupts::init();
-    gdt::init();
-
     println!("Hello, World!");
 
-    unsafe { core::ptr::write_volatile(0xdeadbeef as *mut i32, 69); };
+    interrupts::init();
+    gdt::init();
 
     let boot_info = unsafe {
         mb2::BootInformation::load(multiboot_info_addr as *const mb2::BootInformationHeader)
@@ -35,20 +36,18 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
 
     let mut allocator = memory::BitmapFrameAllocator::new(&boot_info);
     memory::paging::remap::kernel(&mut allocator, &boot_info);
+
+    apic::init();
+    apic::init_timer(
+        apic::DivideConfig::DIVIDE_BY_16,
+        10_000_000,
+        apic::LvtTimerMode::PERIODIC,
+    );
+
     let mut active_table = ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
 
-    let mut v = vec![1, 2, 3];
-    v.push(69);
-
-    println!("{v:?}");
-
-    let mut map = BTreeMap::new();
-    map.insert("A", 1);
-    map.insert("B", 2);
-
-    println!("{map:?}");
-
+    enable_interrupts();
     loop {}
 }
 

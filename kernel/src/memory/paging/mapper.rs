@@ -84,6 +84,7 @@ impl Mapper {
         p1[page.p1_idx()].set(frame, flags | EntryFlags::PRESENT);
     }
 
+    /// Identical to `map_to`, but allocates a frame for you.
     pub fn map<A>(&mut self, page: VirtualAddress, flags: EntryFlags, allocator: &mut A)
     where
         A: FrameAllocator,
