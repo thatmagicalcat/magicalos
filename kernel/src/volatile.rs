@@ -1,3 +1,4 @@
+#[repr(transparent)]
 pub struct Volatile<T> {
     value: T,
 }
@@ -22,14 +23,14 @@ impl<T> Volatile<T> {
         value.into()
     }
 
-    pub fn read(&self) -> T
+    pub fn read_volatile(&self) -> T
     where
         T: Copy,
     {
         unsafe { core::ptr::read_volatile(&self.value) }
     }
 
-    pub fn write(&mut self, value: T) {
+    pub fn write_volatile(&mut self, value: T) {
         unsafe { core::ptr::write_volatile(&mut self.value, value) }
     }
 }

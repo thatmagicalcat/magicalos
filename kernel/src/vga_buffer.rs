@@ -84,7 +84,7 @@ impl Writer {
     pub fn initialize(&mut self) {
         for row in 0..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
-                self.buffer.chars[row][col].write(ScreenChar::whitespace(ColorCode::new(
+                self.buffer.chars[row][col].write_volatile(ScreenChar::whitespace(ColorCode::new(
                     Color::Black,
                     Color::Black,
                 )));
@@ -99,9 +99,9 @@ impl Writer {
                 let sch = &mut self.buffer.chars[row][col];
                 let ScreenChar {
                     ascii_character, ..
-                } = sch.read();
+                } = sch.read_volatile();
 
-                sch.write(ScreenChar {
+                sch.write_volatile(ScreenChar {
                     ascii_character,
                     color_code: ColorCode::new(fg, bg),
                 });
@@ -125,7 +125,7 @@ impl Writer {
                 let col = self.column_position;
                 let color_code = self.color_code;
 
-                self.buffer.chars[row][col].write(ScreenChar {
+                self.buffer.chars[row][col].write_volatile(ScreenChar {
                     ascii_character: byte,
                     color_code,
                 });
