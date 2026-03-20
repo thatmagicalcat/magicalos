@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bit_field = "0.10.3"
 bitflags = "2.11.0"
+crossbeam-queue = { version = "0.3.12", default-features = false, features = ["alloc", "nightly"] }
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 multiboot2 = { version = "0.24.1", default-features = false }
 spin = "0.10.0"

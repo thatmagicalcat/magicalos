@@ -6,11 +6,11 @@
 
 extern crate alloc;
 
+use core::arch::asm;
+
 use memory::paging::ActivePageTable;
 use multiboot2 as mb2;
 use vga_buffer::Color;
-
-use crate::utils::enable_interrupts;
 
 mod apic;
 mod gdt;
@@ -18,6 +18,7 @@ mod interrupts;
 mod macros;
 mod memory;
 mod port;
+mod task;
 mod utils;
 mod vga_buffer;
 mod volatile;
@@ -38,6 +39,8 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     memory::paging::remap::kernel(&mut allocator, &boot_info);
 
     apic::init();
+
+    // TODO: do proper calibration of the timer frequency
     apic::init_timer(
         apic::DivideConfig::DIVIDE_BY_16,
         10_000_000,
@@ -47,8 +50,23 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     let mut active_table = ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
 
-    enable_interrupts();
-    loop {}
+    let mut executor = task::Executor::new();
+
+    executor.spawn(async {
+        loop {
+            println!("ping");
+            task::yield_now().await;
+        }
+    });
+
+    executor.spawn(async {
+        loop {
+            println!("pong");
+            task::yield_now().await;
+        }
+    });
+
+    executor.run();
 }
 
 unsafe extern "C" {

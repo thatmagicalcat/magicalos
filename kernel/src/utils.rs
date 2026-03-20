@@ -56,7 +56,3 @@ pub unsafe fn wrmsr(msr: u32, value: u64) {
         };
     }
 }
-
-pub fn enable_interrupts() {
-    unsafe { core::arch::asm!("sti", options(nomem, nostack, preserves_flags)) };
-}
