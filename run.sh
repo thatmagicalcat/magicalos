@@ -15,4 +15,5 @@ echo "Launching QEMU"
 qemu-system-x86_64     \
     -m 2G              \
     -enable-kvm        \
+    -debugcon stdio    \
     -cdrom magical.iso

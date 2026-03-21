@@ -1,4 +1,5 @@
-use crate::vga_buffer::WRITER;
+use crate::{qemu_debug::QEMU_DEBUGCON, serial::SERIAL, vga_buffer::WRITER};
+use core::fmt::Write;
 
 #[macro_export]
 macro_rules! print {
@@ -9,6 +10,28 @@ macro_rules! print {
 macro_rules! println {
     () => ($crate::print!("\n"));
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! serial_print {
+    ($($arg:tt)*) => ($crate::macros::_serial_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! serial_println {
+    () => ($crate::serial_print!("\n"));
+    ($($arg:tt)*) => ($crate::serial_print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! dbg_print {
+    ($($arg:tt)*) => ($crate::macros::_dbg_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! dbg_println {
+    () => ($crate::dbg_print!("\n"));
+    ($($arg:tt)*) => ($crate::dbg_print!("{}\n", format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -53,8 +76,21 @@ macro_rules! flush_tlb {
 
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
-    use core::fmt::Write;
     crate::interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
+    });
+}
+
+#[doc(hidden)]
+pub fn _serial_print(args: core::fmt::Arguments) {
+    crate::interrupts::without_interrupts(|| {
+        SERIAL.lock().write_fmt(args).unwrap();
+    });
+}
+
+#[doc(hidden)]
+pub fn _dbg_print(args: core::fmt::Arguments) {
+    crate::interrupts::without_interrupts(|| {
+        QEMU_DEBUGCON.lock().write_fmt(args).unwrap();
     });
 }

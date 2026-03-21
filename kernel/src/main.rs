@@ -15,6 +15,8 @@ mod kernel_acpi;
 mod macros;
 mod memory;
 mod port;
+mod qemu_debug;
+mod serial;
 mod task;
 mod utils;
 mod vga_buffer;
