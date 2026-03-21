@@ -13,7 +13,9 @@ mod table;
 pub use idt::*;
 
 pub fn init() {
+    log::info!("Initializing Interrupt Descriptor Table...");
     IDT.load();
+    log::info!("IDT initialized.");
 }
 
 bitflags! {
@@ -43,16 +45,12 @@ pub fn interrupts_enabled() -> bool {
 
 #[inline(always)]
 pub fn disable_interrupts() {
-    unsafe {
-        core::arch::asm!("cli", options(nomem, nostack, preserves_flags));
-    }
+    unsafe { core::arch::asm!("cli", options(nomem, nostack, preserves_flags)) };
 }
 
 #[inline(always)]
 pub fn enable_interrupts() {
-    unsafe {
-        core::arch::asm!("sti", options(nomem, nostack, preserves_flags));
-    }
+    unsafe { core::arch::asm!("sti", options(nomem, nostack, preserves_flags)) };
 }
 
 pub fn without_interrupts<F, R>(f: F) -> R

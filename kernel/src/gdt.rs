@@ -29,6 +29,7 @@ pub fn init() {
         base: gdt().as_ptr() as _,
     };
 
+    log::info!("Loading GDT: {:x?}", gdtr);
     unsafe {
         core::arch::asm! {
             "lgdt [{0}]",
@@ -56,9 +57,12 @@ pub fn init() {
             options(readonly, preserves_flags)
         }
     };
+
+    log::info!("GDT loaded!");
 }
 
 #[repr(C, packed)]
+#[derive(Debug)]
 struct GdtR {
     /// size of table in bytes - 1
     pub size: u16,

@@ -21,12 +21,14 @@ impl FreeBlock {
 }
 
 pub struct LinkedListAllocator {
+    heap_size: usize,
     first: FreeBlock,
 }
 
 impl LinkedListAllocator {
     pub const fn new() -> Self {
         Self {
+            heap_size: 0,
             first: FreeBlock {
                 size: 0,
                 next: None,
@@ -35,6 +37,12 @@ impl LinkedListAllocator {
     }
 
     pub fn init(&mut self, heap_start: *mut u8, heap_size: usize) {
+        log::info!(
+            "Initializing LinkedListAllocator with heap start at {:#010x} and size {} KB",
+            heap_start as usize,
+            heap_size / 1024
+        );
+
         assert!(heap_size >= FreeBlock::MIN_SIZE);
 
         unsafe {
@@ -47,6 +55,7 @@ impl LinkedListAllocator {
             );
         }
 
+        self.heap_size = heap_size;
         self.first = FreeBlock {
             size: 0,
             next: Some(NonNull::new(heap_start as _).unwrap()),
@@ -96,6 +105,31 @@ impl LinkedListAllocator {
                     last.next = next_free;
                 }
 
+                if log::log_enabled!(log::Level::Debug) {
+                    let es = format_args!(" (effective: {})", effective_size);
+                    let ea = format_args!(" (effective: {})", effective_align);
+                    let empty = format_args!("");
+
+                    let used_kb = (alloc_end - alloc_start) / 1024;
+
+                    log::debug!(
+                        "kmalloc(): size = {}{}, align = {}{}, ({used_kb} KiB used / {} KiB free)",
+                        layout.size(),
+                        if layout.size() < FreeBlock::MIN_SIZE {
+                            es
+                        } else {
+                            empty
+                        },
+                        layout.align(),
+                        if layout.align() < FreeBlock::ALIGNMENT {
+                            ea
+                        } else {
+                            empty
+                        },
+                        self.heap_size / 1024,
+                    );
+                }
+
                 return NonNull::new(alloc_start as *mut _);
             }
 
@@ -108,6 +142,15 @@ impl LinkedListAllocator {
     pub fn kfree(&mut self, ptr: NonNull<u8>, layout: Layout) {
         let size = layout.size().max(FreeBlock::MIN_SIZE);
         let addr = ptr.as_ptr() as usize;
+
+        log::debug!(
+            "kfree(): ptr {:#010x}, size {}, align {} (effective size {}, effective align {})",
+            addr,
+            layout.size(),
+            layout.align(),
+            size,
+            layout.align().max(FreeBlock::ALIGNMENT)
+        );
 
         let new_block_ptr = addr as *mut FreeBlock;
         let new_block = FreeBlock {

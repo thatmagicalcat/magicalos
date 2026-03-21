@@ -12,6 +12,8 @@ pub fn kernel<A>(allocator: &mut A, boot_info: &multiboot2::BootInformation) -> 
 where
     A: FrameAllocator,
 {
+    log::info!("Starting kernel remap");
+
     let mut active_page_tbl = ActivePageTable::new();
     let tmp_addr = VirtualAddress(0xCAFEB000);
     let frame = allocator
@@ -20,14 +22,23 @@ where
     let new_table = InactivePageTable::new(frame, &mut active_page_tbl, tmp_addr, allocator);
 
     active_page_tbl.with(&new_table, tmp_addr, allocator, |mapper, allocator| {
+        log::info!("Remapping kernel sections");
         map_kernel_sections(boot_info, mapper, allocator);
+        log::info!("Remapping VGA buffer");
         map_vga_buffer(mapper, allocator);
+        log::info!("Remapping multiboot info");
         map_multiboot_info(boot_info, mapper, allocator);
+        log::info!("Remapping bitmap allocator");
         map_allocator(mapper, allocator);
+        log::info!("Remapping LAPIC");
         map_lapic(mapper, allocator);
     });
 
-    active_page_tbl.switch_table(new_table)
+    log::info!("Switching to new page table");
+    let ret = active_page_tbl.switch_table(new_table);
+    log::info!("Finished kernel remap");
+
+    ret
 }
 
 fn map_lapic<A: FrameAllocator>(mapper: &mut super::Mapper, allocator: &mut A) {
@@ -96,18 +107,19 @@ fn map_kernel_sections<A: FrameAllocator>(
             continue;
         }
 
-        // println!("section name: {:?}", section.name());
+        if let Ok(name) = section.name() {
+            log::debug!(
+                "section: {name:<13} @ addr: {:#X}, size: {:#X}",
+                section.start_address(),
+                section.size()
+            );
+        }
+
         assert!(
             section.start_address() % 4096 == 0,
             "unaligned section start address: {:#x}",
             section.start_address()
         );
-
-        // println!(
-        //     "mapping section @ addr: {:#X}, size: {:#X}",
-        //     section.start_address(),
-        //     section.size()
-        // );
 
         let start_frame = Frame::from_addr(section.start_address() as _);
         let end_frame = Frame(section.end_address().div_ceil(PAGE_SIZE as _) as _);

@@ -13,6 +13,7 @@ const FREE: u8 = 0;
 pub struct BitmapFrameAllocator {
     bitmap_slice: &'static mut [u8],
     total_frames: usize,
+    allocated_frames: usize,
     last_allocated_frame: usize,
 }
 
@@ -43,9 +44,17 @@ impl BitmapFrameAllocator {
 
         bitmap_slice.fill(USED);
 
+        log::debug!(
+            "Bitmap frame allocator initialized with total frames: {}, bitmap size: {} bytes, bitmap start: {:#X}",
+            total_frames,
+            bitmap_array_size,
+            bitmap_array_start_ptr as usize
+        );
+
         let mut allocator = Self {
             total_frames,
             bitmap_slice,
+            allocated_frames: 0,
             last_allocated_frame: 0,
         };
 
@@ -62,20 +71,27 @@ impl BitmapFrameAllocator {
         // mark the memory used by kernel as used
         let kernel_start_frame = kernel_bounds().start / PAGE_SIZE;
         let kernel_end_frame = kernel_bounds().end.div_ceil(PAGE_SIZE);
+
+        allocator.allocated_frames += kernel_end_frame - kernel_start_frame;
         allocator.mark_frames_used(kernel_start_frame..kernel_end_frame);
 
         // mark the multiboot info structure as used
         let mb_start_frame = boot_info.start_address() / PAGE_SIZE;
         let mb_end_frame = boot_info.end_address().div_ceil(PAGE_SIZE);
+
+        allocator.allocated_frames += mb_end_frame - mb_start_frame;
         allocator.mark_frames_used(mb_start_frame..mb_end_frame);
 
         // mark the bitmap array itself as used
         let bitmap_start_frame = bitmap_array_start_ptr as usize / PAGE_SIZE;
         let bitmap_end_frame =
             (bitmap_array_start_ptr as usize + bitmap_array_size).div_ceil(PAGE_SIZE);
+
+        allocator.allocated_frames += bitmap_end_frame - bitmap_start_frame;
         allocator.mark_frames_used(bitmap_start_frame..bitmap_end_frame);
 
         // mark the first frame as used to avoid allocating the null pointer
+        allocator.allocated_frames += 1;
         allocator.mark_frame_used(0);
 
         allocator
@@ -142,11 +158,29 @@ impl BitmapFrameAllocator {
 
 impl FrameAllocator for BitmapFrameAllocator {
     fn allocate_frame(&mut self) -> Option<Frame> {
+        self.allocated_frames += 1;
+
+        if log::log_enabled!(log::Level::Debug) {
+            let allocated_size_kb = self.allocated_frames * PAGE_SIZE / 1024;
+            let total_size_kb = self.total_frames * PAGE_SIZE / 1024;
+
+            log::debug!(
+                "allocate_frame(): [{}/{}] ({} KiB used / {} KiB free), last allocated frame: {}",
+                self.allocated_frames,
+                self.total_frames,
+                allocated_size_kb,
+                total_size_kb,
+                self.last_allocated_frame
+            );
+        }
+
         self.allocate_frame_helper(self.last_allocated_frame >> 3)
             .or_else(|| self.allocate_frame_helper(0))
     }
 
     fn deallocate_frame(&mut self, Frame(frame_index): Frame) {
+        log::debug!("deallocate_frame({})", frame_index);
+
         if frame_index >= self.total_frames {
             panic!("Frame index out of bounds: {}", frame_index);
         }

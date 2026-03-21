@@ -21,6 +21,14 @@ pub static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedLis
 
 /// Map the heap memory
 pub fn init<A: FrameAllocator>(mapper: &mut Mapper, allocator: &mut A) {
+    log::info!("Initializing Kernel Heap Memory");
+
+    log::info!(
+        "Mapping heap memory from {:#010x} to {:#010x}",
+        HEAP_START,
+        HEAP_START + HEAP_SIZE
+    );
+
     // remap the memory used by the heap allocator
     let heap_mem_start = Frame::from_addr(HEAP_START);
     let heap_mem_end = Frame((HEAP_SIZE + HEAP_START).div_ceil(PAGE_SIZE));

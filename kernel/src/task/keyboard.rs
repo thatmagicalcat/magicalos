@@ -8,7 +8,7 @@ use futures_util::{Stream, stream::StreamExt, task::AtomicWaker};
 use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 use spin::Once;
 
-use crate::{print, println};
+use crate::print;
 
 static SCANCODE_QUEUE: Once<ArrayQueue<u8>> = Once::new();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -16,7 +16,7 @@ static WAKER: AtomicWaker = AtomicWaker::new();
 pub fn add_scancode(scancode: u8) {
     if let Some(queue) = SCANCODE_QUEUE.get() {
         if queue.push(scancode).is_err() {
-            println!("WARNING: Scancode queue full; dropping keyboard input");
+            log::warn!("Scancode queue full; dropping keyboard input");
         } else {
             WAKER.wake();
         }
@@ -24,7 +24,7 @@ pub fn add_scancode(scancode: u8) {
         return;
     }
 
-    println!("WARNING: Scancode queue uninitialized");
+    log::warn!("Scancode queue uninitialized");
 }
 
 pub struct ScancodeStream {
@@ -48,6 +48,7 @@ impl Stream for ScancodeStream {
 
         // fast path
         if let Some(scancode) = queue.pop() {
+            log::trace!("Scancode: {scancode:#02x}");
             return Poll::Ready(Some(scancode));
         }
 
@@ -55,6 +56,7 @@ impl Stream for ScancodeStream {
         match queue.pop() {
             Some(scancode) => {
                 _ = WAKER.take();
+                log::trace!("Scancode: {scancode:#02x}");
                 Poll::Ready(Some(scancode))
             }
 

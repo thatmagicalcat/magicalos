@@ -5,6 +5,7 @@ use crate::memory::Frame;
 pub const PHYSICAL_ADDRESS_MASK: u64 = 0xFFFFFFFFFF000;
 
 bitflags::bitflags! {
+    #[derive(Debug)]
     pub struct EntryFlags: u64 {
         const PRESENT         = 1 << 0;
         const WRITABLE        = 1 << 1;

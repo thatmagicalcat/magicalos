@@ -15,6 +15,8 @@ pub struct Executor {
 
 impl Executor {
     pub fn new() -> Self {
+        log::info!("Creating Task Executor");
+
         Self {
             tasks: BTreeMap::new(),
             ready_queue: Arc::new(ArrayQueue::new(100)),
@@ -23,6 +25,8 @@ impl Executor {
     }
 
     pub fn spawn(&mut self, task: impl Into<Task>) {
+        log::info!("Spawning task");
+
         let task = task.into();
         let task_id = task.id;
         self.tasks.insert(task_id, task);
@@ -30,6 +34,8 @@ impl Executor {
     }
 
     pub fn run(&mut self) -> ! {
+        log::info!("Running Task Executor");
+
         loop {
             self.run_queued_tasks();
             self.sleep_if_idle();

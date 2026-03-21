@@ -22,6 +22,7 @@ pub const LAPIC_INITIAL_COUNT_REG_OFFSET: usize = 0x380;
 pub const LAPIC_LVT_TIMER_REG_OFFSET: usize = 0x320;
 
 bitflags! {
+    #[derive(Debug)]
     pub struct DivideConfig: u32 {
         const DIVIDE_BY_2   = 0b000;
         const DIVIDE_BY_4   = 0b001;
@@ -33,6 +34,7 @@ bitflags! {
         const DIVIDE_BY_1   = 0b111;
     }
 
+    #[derive(Debug)]
     pub struct LvtTimerMode: u32 {
         const ONESHOT  = 0;
         const PERIODIC = 1 << 17;
@@ -60,11 +62,21 @@ pub fn send_eoi() {
 }
 
 pub fn init() {
+    log::info!("Disabling legacy PIC");
     pic_disable();
+
+    log::info!("Enabling Local APIC");
     lapic_enable();
 }
 
 pub fn init_timer(divide_config: DivideConfig, initial_count: u32, mode: LvtTimerMode) {
+    log::info!(
+        "Initializing Local APIC timer with divide config {:?}, initial count {}, and mode {:?}",
+        divide_config,
+        initial_count,
+        mode
+    );
+
     write(LAPIC_DIVIDE_CONFIG_REG_OFFSET, divide_config.bits());
     write(LAPIC_INITIAL_COUNT_REG_OFFSET, initial_count);
     write(
