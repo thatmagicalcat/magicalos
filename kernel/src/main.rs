@@ -26,11 +26,17 @@ mod volatile;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
+    println!("Hello, World!");
+
     init_logging();
 
     log::info!("Kernel is starting up...");
 
     interrupts::init();
+
+    unsafe {
+        core::ptr::write(0xDeadbeef as *mut _, 10)
+    };
 
     let boot_info = unsafe {
         multiboot2::BootInformation::load(
