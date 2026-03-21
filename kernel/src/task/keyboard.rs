@@ -8,7 +8,7 @@ use futures_util::{Stream, stream::StreamExt, task::AtomicWaker};
 use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 use spin::Once;
 
-use crate::print;
+use crate::{print, println};
 
 static SCANCODE_QUEUE: Once<ArrayQueue<u8>> = Once::new();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -74,13 +74,16 @@ pub async fn print_keypresses() {
     );
 
     while let Some(scancode) = scancodes.next().await {
-        if let Ok(Some(key_event)) = keyboard.add_byte(scancode)
-            && let Some(key) = keyboard.process_keyevent(key_event)
-        {
-            match key {
-                DecodedKey::Unicode(character) => print!("{}", character),
-                DecodedKey::RawKey(key) => print!("{:?}", key),
+        if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
+            print!("{key_event:?}    ");
+            if let Some(key) = keyboard.process_keyevent(key_event.clone()) {
+                match key {
+                    DecodedKey::Unicode(character) => print!("{}", character),
+                    DecodedKey::RawKey(key) => print!("{:?}", key),
+                }
             }
+
+            println!()
         }
     }
 }
