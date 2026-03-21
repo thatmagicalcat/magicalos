@@ -9,6 +9,7 @@ use super::{Frame, PAGE_SIZE};
 const USED: u8 = !FREE;
 const FREE: u8 = 0;
 
+#[derive(Debug)]
 pub struct BitmapFrameAllocator {
     bitmap_slice: &'static mut [u8],
     total_frames: usize,

@@ -1,4 +1,5 @@
 pub use bitmapframealloc::BitmapFrameAllocator;
+pub use tinyalloc::TinyAllocator;
 
 mod bitmapframealloc;
 mod tinyalloc;
@@ -15,7 +16,7 @@ pub trait FrameAllocator {
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Frame(usize);
+pub struct Frame(pub usize);
 
 impl Frame {
     pub const fn get_ptr(&self) -> *mut u8 {

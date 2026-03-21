@@ -10,6 +10,7 @@ use crate::memory::{Frame, FrameAllocator};
 
 pub const P4: *mut PageTable<L4> = 0xFFFFFFFFFFFFF000 as *mut _;
 
+#[derive(Clone)]
 pub struct Mapper {
     p4: *mut PageTable<L4>,
 }
@@ -66,6 +67,18 @@ impl Mapper {
             .and_then(|p1| p1[virt_addr.p1_idx()].get_pointed_frame())
             .or_else(huge_pages)
             .map(|frame| PhysicalAddress(frame.start_address() as u64))
+    }
+
+    pub fn map_if_unmapped<A: FrameAllocator> (
+        &mut self,
+        page: VirtualAddress,
+        frame: Frame,
+        flags: EntryFlags,
+        allocator: &mut A,
+    ) {
+        if self.translate(page).is_none() {
+            self.map_to(page, frame, flags, allocator);
+        }
     }
 
     pub fn map_to<A: FrameAllocator>(
