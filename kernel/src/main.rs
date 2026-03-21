@@ -4,6 +4,8 @@
 #![warn(clippy::missing_const_for_fn)]
 #![allow(clippy::empty_loop)]
 
+const MIN_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Trace;
+
 extern crate alloc;
 
 mod apic;
@@ -24,7 +26,9 @@ mod volatile;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
-    println!("Hello, World!");
+    init_logging();
+
+    log::info!("Kernel is starting up...");
 
     interrupts::init();
 
@@ -154,4 +158,43 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     print!("=== KERNEL PANIC ===\n{}", info);
 
     loop {}
+}
+
+pub fn init_logging() {
+    struct KernelLogger;
+    impl log::Log for KernelLogger {
+        fn enabled(&self, metadata: &log::Metadata) -> bool {
+            metadata.level() <= MIN_LOG_LEVEL
+        }
+
+        fn log(&self, record: &log::Record) {
+            if self.enabled(record.metadata()) {
+                let level_color = match record.level() {
+                    log::Level::Error => "\x1b[91m", // Bright Red
+                    log::Level::Warn => "\x1b[93m",  // Bright Yellow
+                    log::Level::Info => "\x1b[92m",  // Bright Green
+                    log::Level::Debug => "\x1b[96m", // Bright Cyan
+                    log::Level::Trace => "\x1b[95m", // Bright Magenta
+                };
+
+                let meta_color = "\x1b[90m"; // Dim Gray for file/line
+                let reset = "\x1b[0m";
+
+                let file = record.file().unwrap_or("?");
+                let line = record.line().unwrap_or(0);
+
+                dbg_println!(
+                    "{level_color}[{: <5}]{reset} {meta_color}[{file}:{line}] {reset}{level_color}{}{reset}",
+                    record.level(),
+                    record.args(),
+                );
+            }
+        }
+
+        fn flush(&self) {}
+    }
+
+    static LOGGER: KernelLogger = KernelLogger;
+    log::set_logger(&LOGGER).expect("Failed to set logger");
+    log::set_max_level(log::LevelFilter::Trace);
 }

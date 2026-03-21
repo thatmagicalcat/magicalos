@@ -83,6 +83,7 @@ dependencies = [
  "crossbeam-queue",
  "futures-util",
  "lazy_static",
+ "log",
  "multiboot2",
  "pc-keyboard",
  "spin 0.10.0",
