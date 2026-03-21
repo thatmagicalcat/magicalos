@@ -1,4 +1,5 @@
 /target
 kernel/target
+build
 isodir
 *.iso

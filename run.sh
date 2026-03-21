@@ -5,15 +5,15 @@ KERNEL_PATH=$1
 
 echo "Building ISO Image with kernel: $KERNEL_PATH"
 
-mkdir -p $PROJECT_ROOT/isodir/boot/grub
-cp $KERNEL_PATH $PROJECT_ROOT/isodir/boot/kernel
-cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/isodir/boot/grub/
+mkdir -p $PROJECT_ROOT/build/isodir/boot/grub
+cp $KERNEL_PATH $PROJECT_ROOT/build/isodir/boot/kernel
+cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/build/isodir/boot/grub/
 
-grub-mkrescue -o magical.iso $PROJECT_ROOT/isodir
+grub-mkrescue -o $PROJECT_ROOT/build/magical.iso $PROJECT_ROOT/build/isodir
 
 echo "Launching QEMU"
 qemu-system-x86_64     \
     -m 2G              \
     -enable-kvm        \
     -debugcon stdio    \
-    -cdrom magical.iso
+    -cdrom $PROJECT_ROOT/build/magical.iso
