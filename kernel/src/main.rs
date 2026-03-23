@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(allocator_api)]
 #![warn(clippy::missing_const_for_fn)]
-#![allow(clippy::empty_loop)]
+#![allow(clippy::empty_loop, unused)]
 
 const MIN_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Trace;
 
@@ -10,6 +10,7 @@ extern crate alloc;
 
 mod apic;
 mod gdt;
+mod hpet;
 mod interrupts;
 mod ioapic;
 #[path = "acpi.rs"]
@@ -26,8 +27,6 @@ mod volatile;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
-    println!("Hello, World!");
-
     init_logging();
 
     log::info!("Kernel is starting up...");
@@ -41,6 +40,8 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     }
     .expect("Failed to load multiboot info");
 
+    log_memory_areas(&boot_info);
+
     let mut allocator = memory::BitmapFrameAllocator::new(&boot_info);
     memory::paging::remap::kernel(&mut allocator, &boot_info);
 
@@ -49,14 +50,27 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
 
     gdt::init();
 
-    register_ioapics(boot_info, allocator, active_table);
+    let acpi_tables = parse_acpi_tables(boot_info, &mut allocator);
+    register_ioapics(&acpi_tables, &mut allocator, &mut active_table);
+
+    let hpet_info =
+        acpi::HpetInfo::new(&acpi_tables).expect("Failed to find HPET info in ACPI tables");
+    log::info!("HPET info: {:?}", hpet_info);
+    let base_addr = hpet_info.base_address as usize;
+    let hpet = hpet::HPET
+        .call_once(|| hpet::Hpet::new(base_addr, active_table.mapper_mut(), &mut allocator));
+
+    log::info!("HPET frequency: {} MHz", 1_000_000_000 / hpet.time_period);
 
     // enable keyboard interrupt
     // TODO: find the correct GSI for the keyboard instead of hardcoding it to 1
-    ioapic::enable_irq(1, interrupts::KEYBOARD, apic::get_id());
+    ioapic::enable_irq(
+        1,
+        interrupts::InterruptEntryType::Keyboard as _,
+        apic::get_id(),
+    );
 
     apic::init();
-
     // TODO: do proper calibration of the timer frequency
     apic::init_timer(
         apic::DivideConfig::DIVIDE_BY_16,
@@ -66,15 +80,44 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
 
     let mut executor = task::Executor::new();
     executor.spawn(task::keyboard::print_keypresses());
+
+
     executor.run();
 }
 
 fn register_ioapics(
-    boot_info: multiboot2::BootInformation<'_>,
-    mut allocator: memory::BitmapFrameAllocator,
-    mut active_table: memory::paging::ActivePageTable,
+    acpi_tables: &acpi::AcpiTables<kernel_acpi::KernelAcpiHandler<1>>,
+    allocator: &mut memory::BitmapFrameAllocator,
+    active_table: &mut memory::paging::ActivePageTable,
 ) {
-    log::info!("Parsing ACPI tables to find IO APIC information");
+    let Ok((acpi::platform::InterruptModel::Apic(apic_info), _processor_info)) =
+        acpi::platform::InterruptModel::new(&acpi_tables)
+    else {
+        panic!("Unsupported interrupt model");
+    };
+
+    log::info!("Registering IO APICs...");
+
+    apic_info
+        .io_apics
+        .iter()
+        .map(|apic_info: &acpi::platform::interrupt::IoApic| {
+            ioapic::IoApic::new(
+                apic_info.address as usize,
+                apic_info.global_system_interrupt_base as usize,
+                active_table.mapper_mut(),
+                apic_info.id,
+                allocator,
+            )
+        })
+        .for_each(ioapic::register);
+}
+
+fn parse_acpi_tables(
+    boot_info: multiboot2::BootInformation<'_>,
+    allocator: &mut memory::BitmapFrameAllocator,
+) -> acpi::AcpiTables<kernel_acpi::KernelAcpiHandler<1>> {
+    log::info!("Parsing ACPI tables");
     let (rev, rsdt_address) = boot_info
         .rsdp_v2_tag()
         .map(|tag| {
@@ -97,7 +140,7 @@ fn register_ioapics(
     let acpi_tables = unsafe {
         acpi::AcpiTables::from_rsdt(
             kernel_acpi::KernelAcpiHandler::new(alloc::sync::Arc::new(spin::Mutex::new(
-                memory::TinyAllocator::<1>::new(&mut allocator),
+                memory::TinyAllocator::<1>::new(allocator),
             ))),
             rev,
             rsdt_address,
@@ -105,27 +148,7 @@ fn register_ioapics(
         .expect("Failed to parse ACPI tables")
     };
 
-    let Ok((acpi::platform::InterruptModel::Apic(apic_info), _processor_info)) =
-        acpi::platform::InterruptModel::new(&acpi_tables)
-    else {
-        panic!("Unsupported interrupt model");
-    };
-
-    log::info!("Registering IO APICs...");
-
-    apic_info
-        .io_apics
-        .iter()
-        .map(|apic_info: &acpi::platform::interrupt::IoApic| {
-            ioapic::IoApic::new(
-                apic_info.address as usize,
-                apic_info.global_system_interrupt_base as usize,
-                active_table.mapper_mut(),
-                apic_info.id,
-                &mut allocator,
-            )
-        })
-        .for_each(ioapic::register);
+    acpi_tables
 }
 
 unsafe extern "C" {
@@ -148,15 +171,15 @@ pub fn kernel_bounds() -> KernelBounds {
     }
 }
 
-fn print_memory_areas(boot_info: &multiboot2::BootInformation<'_>) {
+fn log_memory_areas(boot_info: &multiboot2::BootInformation<'_>) {
     let memory_map_tag = boot_info
         .memory_map_tag()
         .expect("Memory map tag not found in multiboot info");
 
-    println!("Memory areas:");
+    log::info!("Memory areas:");
     for area in memory_map_tag.memory_areas() {
-        println!(
-            "  - start: {:#010x}, end: {:#010x}, size: {} KB, type: {:?}",
+        log::info!(
+            "  - start: {:#010x}, end: {:#010x}, size: {} KiB, type: {:?}",
             area.start_address(),
             area.end_address(),
             (area.end_address() - area.start_address()) / 1024,
@@ -175,6 +198,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     drop(writer_lock);
 
     print!("=== KERNEL PANIC ===\n{}", info);
+    log::error!("KERNEL PANIC: {}", info);
 
     loop {}
 }

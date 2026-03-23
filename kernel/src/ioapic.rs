@@ -125,6 +125,12 @@ impl IoApic {
         );
 
         let frame = Frame::from_addr(utils::align_down(physical_addr, memory::PAGE_SIZE));
+
+        log::debug!(
+            "Mapping IO APIC at physical address {physical_addr:#010x} to virtual address {:#010x}",
+            physical_addr,
+        );
+
         mapper.map_to(
             VirtualAddress(physical_addr as _),
             frame,
