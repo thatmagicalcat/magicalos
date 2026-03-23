@@ -1,6 +1,6 @@
 use core::arch::asm;
 use bit_field::BitField;
-use crate::utils::read_cs;
+use crate::{interrupts::InterruptEntryType, utils::read_cs};
 
 pub struct Idt(pub [Entry; 256]);
 
@@ -9,7 +9,9 @@ impl Idt {
         Idt([Entry::missing(); _])
     }
 
-    pub fn set_handler(&mut self, entry: u8, handler: HandlerFn) -> &mut Entry {
+    pub fn set_handler(&mut self, entry: InterruptEntryType, handler: HandlerFn) -> &mut Entry {
+        log::info!("setting up interrupt handler for {entry:?}");
+
         self.0[entry as usize] = Entry::new(SegmentSelector(read_cs()), handler);
         &mut self.0[entry as usize]
     }
@@ -25,7 +27,7 @@ impl Idt {
 }
 
 bitflags::bitflags! {
-    struct PrivilegeLevel: u16 {
+    pub struct PrivilegeLevel: u16 {
         const RING0 = 0;
         const RING1 = 1;
         const RING2 = 2;

@@ -6,13 +6,17 @@ use crate::memory::PAGE_SIZE;
 
 use super::{handlers::*, table::Idt};
 
-pub const DIVIDE_BY_ZERO: u8 = 0;
-pub const PAGE_FAULT: u8 = 14;
-pub const BREAKPOINT: u8 = 3;
-pub const DOUBLE_FAULT: u8 = 8;
-pub const SPURIOUS_INTERRUPT: u8 = 255;
-pub const APIC_TIMER: u8 = 32;
-pub const KEYBOARD: u8 = 33;
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
+pub enum InterruptEntryType {
+    DivideByZero = 0,
+    PageFault = 14,
+    Breakpoint = 3,
+    DoubleFault = 8,
+    SpuriousInterrupt = 255,
+    ApicTimer = 32,
+    Keyboard = 33,
+}
 
 pub const IST_STACK_SIZE: usize = PAGE_SIZE;
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
@@ -28,13 +32,15 @@ lazy_static::lazy_static! {
     pub static ref IDT: Idt = {
         let mut idt = Idt::new();
 
-        idt.set_handler(DIVIDE_BY_ZERO, exception_handler!(divide_by_zero_handler));
-        idt.set_handler(PAGE_FAULT, exception_handler_with_error_code!(page_fault_handler));
-        idt.set_handler(BREAKPOINT, exception_handler!(breakpoint_handler));
-        idt.set_handler(SPURIOUS_INTERRUPT, exception_handler!(spurious_interrupt_handler));
-        idt.set_handler(APIC_TIMER, exception_handler!(apic_timer_handler));
-        idt.set_handler(KEYBOARD, exception_handler!(keyboard_handler));
-        idt.set_handler(DOUBLE_FAULT, exception_handler_with_error_code!(double_fault_handler))
+        use InterruptEntryType::*;
+
+        idt.set_handler(DivideByZero, exception_handler!(divide_by_zero_handler));
+        idt.set_handler(PageFault, exception_handler_with_error_code!(page_fault_handler));
+        idt.set_handler(Breakpoint, exception_handler!(breakpoint_handler));
+        idt.set_handler(SpuriousInterrupt, exception_handler!(spurious_interrupt_handler));
+        idt.set_handler(ApicTimer, exception_handler!(apic_timer_handler));
+        idt.set_handler(Keyboard, exception_handler!(keyboard_handler));
+        idt.set_handler(DoubleFault, exception_handler_with_error_code!(double_fault_handler))
             .options_mut()
             .set_stack_index(1);
 
