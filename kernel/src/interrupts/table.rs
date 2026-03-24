@@ -9,7 +9,7 @@ impl Idt {
         Idt([Entry::missing(); _])
     }
 
-    pub fn set_handler(&mut self, entry: InterruptEntryType, handler: HandlerFn) -> &mut Entry {
+    pub fn set_handler(&mut self, entry: InterruptEntryType, handler: usize) -> &mut Entry {
         log::info!("setting up interrupt handler for {entry:?}");
 
         self.0[entry as usize] = Entry::new(SegmentSelector(read_cs()), handler);
@@ -63,20 +63,14 @@ pub struct Entry {
     reserved: u32,
 }
 
-pub type HandlerFn = extern "C" fn() -> !;
-
 impl Entry {
-    pub fn new(gdt_selector: SegmentSelector, handler: HandlerFn) -> Self {
-        // split into 3 parts
-        // low, mid, high
-        let ptr = handler as usize; 
-
+    pub fn new(gdt_selector: SegmentSelector, handler: usize) -> Self {
         Self {
-            pointer_low: ptr as u16,
+            pointer_low: handler as u16,
             gdt_selector,
             options: EntryOptions::new(),
-            pointer_middle: (ptr >> 16) as u16,
-            pointer_high: (ptr >> 32) as u32,
+            pointer_middle: (handler >> 16) as u16,
+            pointer_high: (handler >> 32) as u32,
             reserved: 0,
         }
     }

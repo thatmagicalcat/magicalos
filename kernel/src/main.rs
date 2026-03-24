@@ -1,14 +1,15 @@
 #![no_std]
 #![no_main]
 #![feature(allocator_api)]
+#![feature(abi_x86_interrupt)]
 #![warn(clippy::missing_const_for_fn)]
-#![allow(clippy::empty_loop, unused)]
+#![allow(clippy::empty_loop)]
 
 use core::time::Duration;
 
-use crate::task::timer;
+use crate::task::timer::{self, sleep};
 
-const MIN_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Trace;
+const MIN_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Debug;
 
 extern crate alloc;
 
@@ -32,8 +33,6 @@ mod volatile;
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     init_logging();
-
-    log::info!("Kernel is starting up...");
 
     interrupts::init();
 
@@ -78,24 +77,21 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     apic::calibrate_lapic_timer(hpet);
 
     let mut executor = task::Executor::new();
-
     // responsible for handling sleep timers
     executor.spawn(timer::timer_dispatch());
 
-    executor.spawn(async {
-        timer::sleep(Duration::from_secs(1)).await;
-        println!("Task 1");
-    });
+    async fn f(secs: u64) {
+        sleep(Duration::from_secs(secs)).await;
+        println!("Printing after {secs} seconds");
+    }
 
-    executor.spawn(async {
-        timer::sleep(Duration::from_secs(2)).await;
-        println!("Task 2");
-    });
-
-    executor.spawn(async {
-        timer::sleep(Duration::from_secs(3)).await;
-        println!("Task 3");
-    });
+    executor.spawn(f(1));
+    executor.spawn(f(2));
+    executor.spawn(f(3));
+    executor.spawn(f(4));
+    executor.spawn(f(5));
+    executor.spawn(f(6));
+    executor.spawn(f(7));
 
     executor.run();
 }
@@ -106,7 +102,7 @@ fn register_ioapics(
     active_table: &mut memory::paging::ActivePageTable,
 ) {
     let Ok((acpi::platform::InterruptModel::Apic(apic_info), _processor_info)) =
-        acpi::platform::InterruptModel::new(&acpi_tables)
+        acpi::platform::InterruptModel::new(acpi_tables)
     else {
         panic!("Unsupported interrupt model");
     };
@@ -152,7 +148,7 @@ fn parse_acpi_tables(
         rsdt_address
     );
 
-    let acpi_tables = unsafe {
+    unsafe {
         acpi::AcpiTables::from_rsdt(
             kernel_acpi::KernelAcpiHandler::new(alloc::sync::Arc::new(spin::Mutex::new(
                 memory::TinyAllocator::<1>::new(allocator),
@@ -161,9 +157,7 @@ fn parse_acpi_tables(
             rsdt_address,
         )
         .expect("Failed to parse ACPI tables")
-    };
-
-    acpi_tables
+    }
 }
 
 unsafe extern "C" {

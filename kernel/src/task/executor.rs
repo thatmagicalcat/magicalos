@@ -1,4 +1,7 @@
-use core::task::{Context, Poll, Waker};
+use core::{
+    any::type_name,
+    task::{Context, Poll, Waker},
+};
 
 use alloc::{collections::BTreeMap, sync::Arc};
 use crossbeam_queue::ArrayQueue;
@@ -24,10 +27,10 @@ impl Executor {
         }
     }
 
-    pub fn spawn(&mut self, task: impl Into<Task>) {
-        log::info!("Spawning task");
-
+    pub fn spawn<T: Into<Task>>(&mut self, task: T) {
         let task = task.into();
+        log::info!("Spawning task #{}, [{}]", task.id.0, type_name::<T>());
+
         let task_id = task.id;
         self.tasks.insert(task_id, task);
         self.ready_queue.push(task_id).expect("Task queue is full");
@@ -66,6 +69,7 @@ impl Executor {
             match task.poll(&mut context) {
                 Poll::Pending => {}
                 Poll::Ready(()) => {
+                    log::info!("Task #{} is finished!", task_id.0);
                     self.tasks.remove(&task_id);
                     self.waker_cache.remove(&task_id);
                 }

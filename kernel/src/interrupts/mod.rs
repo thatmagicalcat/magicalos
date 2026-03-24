@@ -4,8 +4,6 @@ use crate::println;
 
 pub use idt::IDT;
 
-#[macro_use]
-mod macros;
 mod handlers;
 mod idt;
 mod table;
