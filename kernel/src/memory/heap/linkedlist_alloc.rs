@@ -110,10 +110,8 @@ impl LinkedListAllocator {
                     let ea = format_args!(" (effective: {})", effective_align);
                     let empty = format_args!("");
 
-                    let used_kb = (alloc_end - alloc_start) / 1024;
-
                     log::debug!(
-                        "kmalloc(): size = {}{}, align = {}{}, ({used_kb} KiB used / {} KiB free)",
+                        "kmalloc(): size = {}{}, align = {}{}",
                         layout.size(),
                         if layout.size() < FreeBlock::MIN_SIZE {
                             es
@@ -126,7 +124,6 @@ impl LinkedListAllocator {
                         } else {
                             empty
                         },
-                        self.heap_size / 1024,
                     );
                 }
 
@@ -143,14 +140,27 @@ impl LinkedListAllocator {
         let size = layout.size().max(FreeBlock::MIN_SIZE);
         let addr = ptr.as_ptr() as usize;
 
-        log::debug!(
-            "kfree(): ptr {:#010x}, size {}, align {} (effective size {}, effective align {})",
-            addr,
-            layout.size(),
-            layout.align(),
-            size,
-            layout.align().max(FreeBlock::ALIGNMENT)
-        );
+        if log::log_enabled!(log::Level::Debug) {
+            let es = format_args!(" (effective: {size})");
+            let ea = format_args!(" (effective: {})", layout.align());
+            let empty = format_args!("");
+
+            log::debug!(
+                "kfree(): size = {}{}, align = {}{}",
+                layout.size(),
+                if layout.size() < FreeBlock::MIN_SIZE {
+                    es
+                } else {
+                    empty
+                },
+                layout.align(),
+                if layout.align() < FreeBlock::ALIGNMENT {
+                    ea
+                } else {
+                    empty
+                },
+            );
+        }
 
         let new_block_ptr = addr as *mut FreeBlock;
         let new_block = FreeBlock {
