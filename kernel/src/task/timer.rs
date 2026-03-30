@@ -1,6 +1,5 @@
 use core::{
     pin::Pin,
-    sync::atomic::{AtomicU64, Ordering},
     task::{Context, Poll, Waker},
     time::Duration,
 };
@@ -9,7 +8,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use futures_util::task::AtomicWaker;
 use spin::Mutex;
 
-use crate::{apic, hpet::HPET, interrupts};
+use crate::{hpet::HPET, io::apic, utils};
 
 type Nanoseconds = u64;
 
@@ -20,25 +19,9 @@ fn get_min_timestamp() -> Option<u64> {
     TIMERS.lock().first_key_value().map(|(tick, _)| *tick)
 }
 
-fn duration_to_ticks(
-    duration: Nanoseconds,
-    freq_hz: u64,
-) -> Result<u32, <u128 as TryInto<u32>>::Error> {
-    let ticks = (duration * freq_hz) / 1_000_000_000;
-    ticks.try_into()
-}
-
-fn set_timer(ticks: u64) {
-    apic::set_timer(
-        apic::DivideConfig::DIVIDE_BY_1,
-        ticks as u32,
-        apic::LvtTimerMode::ONESHOT,
-    );
-}
-
 fn stop_timer() {
     apic::set_timer(
-        apic::DivideConfig::DIVIDE_BY_1,
+        apic::DivideConfig::DivideBy1,
         0,
         apic::LvtTimerMode::ONESHOT,
     );
@@ -84,15 +67,18 @@ impl Future for Timer {
                 return Poll::Pending;
             }
 
-            let ticks = duration_to_ticks(
+            let utils::LApicConfig {
+                initial_count,
+                divide_config,
+            } = utils::duration_to_timer_config(
                 self.target - currnet_timestamp_nanos,
                 apic::get_timer_frequency(),
             )
-            .expect("Duration too long to convert to ticks") as _;
+            .expect("Duration too long to convert to ticks");
 
-            set_timer(ticks);
+            apic::set_timer(divide_config, initial_count, apic::LvtTimerMode::ONESHOT);
 
-            if ticks == 0 {
+            if initial_count == 0 {
                 WAKER.wake();
             }
 

@@ -5,12 +5,12 @@ use acpi::{Handler, PciAddress, PhysicalMapping};
 
 use spin::Mutex;
 
+use super::port::Port;
 use crate::{
     memory::{
         self, Frame, PAGE_SIZE,
         paging::{ActivePageTable, EntryFlags, VirtualAddress},
     },
-    port::Port,
     utils,
 };
 

@@ -2,7 +2,8 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 use bitflags::bitflags;
 
-use crate::{hpet::Hpet, interrupts, port::Port, utils::rdmsr};
+use super::port::Port;
+use crate::{hpet::Hpet, interrupts, utils::rdmsr};
 
 static LAPIC_TIMER_FREQ: AtomicU64 = AtomicU64::new(0);
 
@@ -26,23 +27,42 @@ pub const LAPIC_INITIAL_COUNT_REG_OFFSET: usize = 0x380;
 pub const LAPIC_CURRENT_COUNT_REG_OFFSET: usize = 0x390;
 pub const LAPIC_LVT_TIMER_REG_OFFSET: usize = 0x320;
 
-bitflags! {
-    #[derive(Debug)]
-    pub struct DivideConfig: u32 {
-        const DIVIDE_BY_2   = 0b000;
-        const DIVIDE_BY_4   = 0b001;
-        const DIVIDE_BY_8   = 0b010;
-        const DIVIDE_BY_16  = 0b011;
-        const DIVIDE_BY_32  = 0b100;
-        const DIVIDE_BY_64  = 0b101;
-        const DIVIDE_BY_128 = 0b110;
-        const DIVIDE_BY_1   = 0b111;
-    }
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub enum DivideConfig {
+    DivideBy2 = 0b000,
+    DivideBy4 = 0b001,
+    DivideBy8 = 0b010,
+    DivideBy16 = 0b011,
+    DivideBy32 = 0b100,
+    DivideBy64 = 0b101,
+    DivideBy128 = 0b110,
+    DivideBy1 = 0b111,
+}
 
+bitflags! {
     #[derive(Debug)]
     pub struct LvtTimerMode: u32 {
         const ONESHOT  = 0;
         const PERIODIC = 1 << 17;
+    }
+}
+
+impl DivideConfig {
+    /// An ordered array from smallest to largest divider.
+    pub const ASCENDING: [(u64, Self); 8] = [
+        (1, Self::DivideBy1),
+        (2, Self::DivideBy2),
+        (4, Self::DivideBy4),
+        (8, Self::DivideBy8),
+        (16, Self::DivideBy16),
+        (32, Self::DivideBy32),
+        (64, Self::DivideBy64),
+        (128, Self::DivideBy128),
+    ];
+
+    pub const fn bits(self) -> u32 {
+        self as u32
     }
 }
 
@@ -92,7 +112,7 @@ pub fn set_timer(divide_config: DivideConfig, initial_count: u32, mode: LvtTimer
 pub fn calibrate_lapic_timer(hpet: &Hpet) {
     log::info!("Calibrating LAPIC timer frequency using HPET...");
 
-    set_timer(DivideConfig::DIVIDE_BY_1, !0, LvtTimerMode::PERIODIC);
+    set_timer(DivideConfig::DivideBy1, !0, LvtTimerMode::PERIODIC);
 
     // calibrate the HPET timer frequency
     let apic_freq = interrupts::without_interrupts(|| {
@@ -100,7 +120,7 @@ pub fn calibrate_lapic_timer(hpet: &Hpet) {
 
         // sleep for 10ms using HPET and measure how many APIC timer ticks have passed
         let sleep_duration = core::time::Duration::from_millis(10);
-        hpet.sleep(sleep_duration);
+        hpet.busy_wait(sleep_duration);
 
         let apic_timestamp_after = read_timer_count();
         let apic_ticks = apic_timestamp_before - apic_timestamp_after;

@@ -1,4 +1,4 @@
-use crate::{qemu_debug::QEMU_DEBUGCON, serial::SERIAL, vga_buffer::WRITER};
+use crate::{io::qemu_debug::QEMU_DEBUGCON, io::serial::SERIAL, vga_buffer::WRITER};
 use core::fmt::Write;
 
 #[macro_export]

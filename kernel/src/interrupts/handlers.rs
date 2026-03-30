@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use crate::{apic, port::Port};
+use crate::io::{apic, port::Port};
 
 use super::*;
 

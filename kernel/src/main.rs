@@ -20,18 +20,13 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
 
 extern crate alloc;
 
-mod apic;
 mod gdt;
 mod hpet;
 mod interrupts;
+mod io;
 mod ioapic;
-#[path = "acpi.rs"]
-mod kernel_acpi;
 mod macros;
 mod memory;
-mod port;
-mod qemu_debug;
-mod serial;
 mod task;
 mod utils;
 mod vga_buffer;
@@ -77,11 +72,11 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
     ioapic::enable_irq(
         1,
         interrupts::InterruptEntryType::Keyboard as _,
-        apic::get_id(),
+        io::apic::get_id(),
     );
 
-    apic::init();
-    apic::calibrate_lapic_timer(hpet);
+    io::apic::init();
+    io::apic::calibrate_lapic_timer(hpet);
 
     let mut executor = task::Executor::new();
     // responsible for handling sleep timers
@@ -104,7 +99,7 @@ pub extern "C" fn kernel_main(multiboot_info_addr: u32) -> ! {
 }
 
 fn register_ioapics(
-    acpi_tables: &acpi::AcpiTables<kernel_acpi::KernelAcpiHandler<1>>,
+    acpi_tables: &acpi::AcpiTables<io::acpi::KernelAcpiHandler<1>>,
     allocator: &mut memory::BitmapFrameAllocator,
     active_table: &mut memory::paging::ActivePageTable,
 ) {
@@ -134,7 +129,7 @@ fn register_ioapics(
 fn parse_acpi_tables(
     boot_info: multiboot2::BootInformation<'_>,
     allocator: &mut memory::BitmapFrameAllocator,
-) -> acpi::AcpiTables<kernel_acpi::KernelAcpiHandler<1>> {
+) -> acpi::AcpiTables<io::acpi::KernelAcpiHandler<1>> {
     log::info!("Parsing ACPI tables");
     let (rev, rsdt_address) = boot_info
         .rsdp_v2_tag()
@@ -157,7 +152,7 @@ fn parse_acpi_tables(
 
     unsafe {
         acpi::AcpiTables::from_rsdt(
-            kernel_acpi::KernelAcpiHandler::new(alloc::sync::Arc::new(spin::Mutex::new(
+            io::acpi::KernelAcpiHandler::new(alloc::sync::Arc::new(spin::Mutex::new(
                 memory::TinyAllocator::<1>::new(allocator),
             ))),
             rev,

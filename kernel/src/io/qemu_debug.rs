@@ -1,6 +1,6 @@
 use spin::{Lazy, Mutex};
 
-use crate::port::Port;
+use super::port::Port;
 
 pub static QEMU_DEBUGCON: Lazy<Mutex<QemuDebugcon>> = Lazy::new(|| Mutex::new(QemuDebugcon));
 

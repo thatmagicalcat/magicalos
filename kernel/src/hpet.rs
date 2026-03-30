@@ -58,7 +58,7 @@ impl Hpet {
         this
     }
 
-    pub fn sleep(&self, duration: Duration) {
+    pub fn busy_wait(&self, duration: Duration) {
         let ticks = duration.as_nanos() * 1_000_000 / self.time_period as u128;
         let start = self.read_counter() as u128;
 

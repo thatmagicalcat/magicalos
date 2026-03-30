@@ -1,7 +1,7 @@
 use super::{VirtualAddress, entry::EntryFlags};
 
 use crate::{
-    apic,
+    io::apic,
     memory::{
         Frame, FrameAllocator, PAGE_SIZE,
         paging::{ActivePageTable, InactivePageTable},
