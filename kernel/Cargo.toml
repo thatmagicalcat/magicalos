@@ -14,3 +14,8 @@ log = "0.4.29"
 multiboot2 = { version = "0.24.1", default-features = false }
 pc-keyboard = "0.8.0"
 spin = "0.10.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(log_level, values("trace", "debug", "info", "warn", "error"))'
+] }

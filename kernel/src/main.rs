@@ -9,7 +9,14 @@ use core::time::Duration;
 
 use crate::task::timer::{self, sleep};
 
-const MIN_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Debug;
+#[rustfmt::skip]
+const MIN_LOG_LEVEL: log::LevelFilter = {
+    #[cfg(log_level = "trace")] { log::LevelFilter::Trace }
+    #[cfg(log_level = "debug")] { log::LevelFilter::Debug }
+    #[cfg(log_level = "info")] { log::LevelFilter::Info }
+    #[cfg(log_level = "warn")] { log::LevelFilter::Warn }
+    #[cfg(log_level = "error")] { log::LevelFilter::Error }
+};
 
 extern crate alloc;
 
