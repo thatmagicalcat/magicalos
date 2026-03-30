@@ -105,12 +105,12 @@ impl LinkedListAllocator {
                     last.next = next_free;
                 }
 
-                if log::log_enabled!(log::Level::Debug) {
+                if log::log_enabled!(log::Level::Trace) {
                     let es = format_args!(" (effective: {})", effective_size);
                     let ea = format_args!(" (effective: {})", effective_align);
                     let empty = format_args!("");
 
-                    log::debug!(
+                    log::trace!(
                         "kmalloc(): size = {}{}, align = {}{}",
                         layout.size(),
                         if layout.size() < FreeBlock::MIN_SIZE {
@@ -140,12 +140,12 @@ impl LinkedListAllocator {
         let size = layout.size().max(FreeBlock::MIN_SIZE);
         let addr = ptr.as_ptr() as usize;
 
-        if log::log_enabled!(log::Level::Debug) {
+        if log::log_enabled!(log::Level::Trace) {
             let es = format_args!(" (effective: {size})");
             let ea = format_args!(" (effective: {})", layout.align());
             let empty = format_args!("");
 
-            log::debug!(
+            log::trace!(
                 "kfree(): size = {}{}, align = {}{}",
                 layout.size(),
                 if layout.size() < FreeBlock::MIN_SIZE {
