@@ -108,10 +108,11 @@ fn map_kernel_sections<A: FrameAllocator>(
         }
 
         if let Ok(name) = section.name() {
-            log::debug!(
-                "section: {name:<13} @ addr: {:#X}, size: {:#X}",
+            log::info!(
+                "section: {name:<13} @ addr: {:#X}, size: {} Bytes ({} KiB)",
                 section.start_address(),
-                section.size()
+                section.size(),
+                section.size() / 1024
             );
         }
 
