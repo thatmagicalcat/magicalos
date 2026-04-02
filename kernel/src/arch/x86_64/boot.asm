@@ -6,6 +6,18 @@ header_start:
     ; checksum
     dd 0x100000000 - (0xe85250d6 + 0 + (header_end - header_start))
 
+    ; section 3.1.10 of https://www.gnu.org/software/grub/manual/multiboot2/multiboot.html
+    ; framebuffer tag
+    align 8
+    dw 5  ; type
+    dw 0  ; flags
+    dd 20 ; size
+    dd 0  ; width (0 = no preference)
+    dd 0  ; height (0 = no preference)
+    dd 32 ; depth (bits per pixel)
+
+    ; terminator tag
+    align 8
     dw 0 ; type
     dw 0 ; flags
     dw 8 ; size

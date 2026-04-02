@@ -19,12 +19,13 @@ grub-mkrescue -o $PROJECT_ROOT/build/magical.iso $PROJECT_ROOT/build/isodir 2> /
 
 echo "Launching QEMU..."
 qemu-system-x86_64                                     \
+    -cdrom $PROJECT_ROOT/build/magical.iso             \
     -m 2G                                              \
+    -vga virtio                                        \
     -enable-kvm                                        \
     -debugcon stdio                                    \
     -cpu host                                          \
-    -display sdl                                       \
-    -cdrom $PROJECT_ROOT/build/magical.iso             \
+    -display gtk                                       \
     -device ahci,id=ahci0                              \
     -drive id=disk0,file=$DISK_IMG,format=raw,if=none  \
     -device ide-hd,drive=disk0,bus=ahci0.0

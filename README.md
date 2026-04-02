@@ -30,8 +30,10 @@ good question... even idk, but here's the progress so far xD
 - **Hardware Integration**:
   - **APIC & IOAPIC**
 - **Asynchronous Execution**: Includes a simple `async/await` task executor! The PS/2 keyboard driver utilizes `crossbeam-queue` to handle keypresses asynchronously.
+- **Preemptive Multitasking**: OS Threads and a simple Robin Round SCheduler.
 - **Display & Logging**:
-  - Custom VGA text buffer interface with color support.
+  - ~Custom VGA text buffer interface with color support~
+  - VESA graphics with a custom text renderer
   - qemu logging to easily see kernel traces in the host terminal.
 
 ## Getting Started
@@ -71,7 +73,7 @@ I'm constantly trying to add magic, here's the rough roadmap of features I want 
 - [x] **Phase 1: Hardware Interrupts** (VGA, APIC, IOAPIC, Keyboard async tasks, Timer)
 - [ ] **Phase 2: Multitasking** (Context switching, Scheduler, Kernel threads)
     - [x] Implement an asynchronous task executor to run multiple tasks concurrently.
-    - [ ] Implement OS Threads and a simple executor.
+    - [x] Implement OS Threads and a simple executor.
     - [ ] Add support for user-space processes and context switching between them.
 - [ ] **Phase 3: Storage** (PCI enumeration, Block devices, VFS, FAT32)
     - [ ] Implement PCI enumeration to detect storage devices.

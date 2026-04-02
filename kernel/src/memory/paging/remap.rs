@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-pub fn kernel<A>(allocator: &mut A, boot_info: &multiboot2::BootInformation) -> InactivePageTable
+pub fn remap<A>(allocator: &mut A, boot_info: &multiboot2::BootInformation) -> InactivePageTable
 where
     A: FrameAllocator,
 {
@@ -32,6 +32,8 @@ where
         map_allocator(mapper, allocator);
         log::info!("Mapping LAPIC");
         map_lapic(mapper, allocator);
+        log::info!("Mapping Linear Framebuffer");
+        map_lfb(boot_info, mapper, allocator);
     });
 
     log::info!("Switching to new page table");
@@ -39,6 +41,35 @@ where
     log::info!("Finished kernel remap");
 
     ret
+}
+
+fn map_lfb<A: FrameAllocator>(
+    boot_info: &multiboot2::BootInformation,
+    mapper: &mut super::Mapper,
+    allocator: &mut A,
+) {
+    let Some(Ok(fb_tag)) = boot_info.framebuffer_tag() else {
+        panic!("Framebuffer tag not found in multiboot info / unsupported framebuffer format");
+    };
+
+    let lfb_size = fb_tag.height() as usize * fb_tag.pitch() as usize;
+    let fb_start_frame = Frame::from_addr(fb_tag.address() as _);
+    let fb_end_frame = Frame((fb_tag.address() as usize + lfb_size).div_ceil(PAGE_SIZE) as _);
+
+    let lfb_virt_addr = crate::LFB_VIRT_ADDR;
+
+    for frame in fb_start_frame.0..fb_end_frame.0 {
+        let page = VirtualAddress((lfb_virt_addr + (frame - fb_start_frame.0) * PAGE_SIZE) as _);
+        mapper.map_to(
+            page,
+            Frame(frame),
+            EntryFlags::WRITABLE
+                | EntryFlags::PRESENT
+                | EntryFlags::CACHE_DISABLE
+                | EntryFlags::WRITE_THROUGH,
+            allocator,
+        );
+    }
 }
 
 fn map_lapic<A: FrameAllocator>(mapper: &mut super::Mapper, allocator: &mut A) {
