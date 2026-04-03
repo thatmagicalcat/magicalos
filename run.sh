@@ -2,6 +2,8 @@
 
 PROJECT_ROOT=$(dirname "$0")
 KERNEL_PATH=$1
+ISO_ROOT=$PROJECT_ROOT/build/isodir
+LIMINE=$PROJECT_ROOT/limine/bin
 
 DISK_IMG="$PROJECT_ROOT/build/magical_disk.img"
 if [ ! -f "$DISK_IMG" ]; then
@@ -11,14 +13,27 @@ fi
 
 echo "Building ISO Image with kernel: $KERNEL_PATH"
 
-mkdir -p $PROJECT_ROOT/build/isodir/boot/grub
-cp $KERNEL_PATH $PROJECT_ROOT/build/isodir/boot/kernel
-cp $PROJECT_ROOT/grub.cfg $PROJECT_ROOT/build/isodir/boot/grub/
+mkdir -p $ISO_ROOT/boot/limine
+cp -v $PROJECT_ROOT/limine.conf $ISO_ROOT/boot/limine/
+cp -v $KERNEL_PATH $ISO_ROOT/boot/kernel
+cp -v $LIMINE/limine-bios.sys $LIMINE/limine-bios-cd.bin $LIMINE/limine-uefi-cd.bin $ISO_ROOT/boot/limine
 
-grub-mkrescue -o $PROJECT_ROOT/build/magical.iso $PROJECT_ROOT/build/isodir 2> /dev/null
+# Create the EFI boot tree and copy Limine's EFI executables over.
+mkdir -p $ISO_ROOT/EFI/BOOT
+cp -v $LIMINE/BOOTX64.EFI $ISO_ROOT/EFI/BOOT/
+
+# Create the bootable ISO.
+xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
+        -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
+        -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
+        -efi-boot-part --efi-boot-image --protective-msdos-label \
+        $ISO_ROOT -o $PROJECT_ROOT/build/magical.iso
+
+$LIMINE/limine bios-install $PROJECT_ROOT/build/magical.iso
 
 echo "Launching QEMU..."
 qemu-system-x86_64                                     \
+    -no-reboot                                         \
     -cdrom $PROJECT_ROOT/build/magical.iso             \
     -m 2G                                              \
     -vga virtio                                        \
