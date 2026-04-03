@@ -12,9 +12,9 @@ use crate::{
 mod linkedlist_alloc;
 pub use linkedlist_alloc::LinkedListAllocator;
 
-// 100 MiB
-pub const HEAP_SIZE: usize = 100 * 1024 * 1024;
-pub const HEAP_START: usize = 0o0_000_010_000_000_000;
+// 100 KiB
+pub const HEAP_SIZE: usize = 100 * 1024;
+pub const HEAP_START: usize = 0x40_00_00_00;
 
 #[global_allocator]
 pub static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
@@ -37,6 +37,8 @@ pub fn init<A: FrameAllocator>(mapper: &mut Mapper, allocator: &mut A) {
         let page = VirtualAddress((frame * PAGE_SIZE) as _);
         mapper.map(page, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
     }
+
+    log::info!("Initializing global allocator");
 
     // initialize the heap
     GLOBAL_ALLOCATOR

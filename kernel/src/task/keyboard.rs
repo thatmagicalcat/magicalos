@@ -8,8 +8,6 @@ use futures_util::{Stream, stream::StreamExt, task::AtomicWaker};
 use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 use spin::Once;
 
-use crate::{print, println};
-
 static SCANCODE_QUEUE: Once<ArrayQueue<u8>> = Once::new();
 static WAKER: AtomicWaker = AtomicWaker::new();
 
@@ -77,22 +75,12 @@ pub async fn print_keypresses() {
 
     while let Some(scancode) = scancodes.next().await {
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-            let mut writer_lock = crate::interrupts::without_interrupts(|| crate::vga_buffer::WRITER.lock());
-            writer_lock.set_color(crate::vga_buffer::Color::Cyan, crate::vga_buffer::Color::Black);
-            drop(writer_lock);
-
             if let Some(key) = keyboard.process_keyevent(key_event.clone()) {
                 match key {
-                    DecodedKey::Unicode(character) => println!("{}", character),
-                    DecodedKey::RawKey(key) => println!("{:?}", key),
+                    DecodedKey::Unicode(character) => log::debug!("{}", character),
+                    DecodedKey::RawKey(key) => log::debug!("{:?}", key),
                 }
             }
-
-            let mut writer_lock = crate::interrupts::without_interrupts(|| crate::vga_buffer::WRITER.lock());
-            writer_lock.set_color(crate::vga_buffer::Color::Pink, crate::vga_buffer::Color::Black);
-
-            //
-            // println!(" :: {key_event:?}");
         }
     }
 }

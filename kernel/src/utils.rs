@@ -1,4 +1,27 @@
-use crate::io::apic::DivideConfig;
+use crate::{io::apic::DivideConfig, memory::paging::PhysicalAddress};
+
+pub fn read_cr3() -> PhysicalAddress {
+    let value: u64;
+    unsafe {
+        core::arch::asm! {
+            "mov {}, cr3",
+            out(reg) value,
+            options(nostack, nomem, preserves_flags)
+        }
+    };
+
+    PhysicalAddress(value)
+}
+
+pub fn write_cr3(value: u64) {
+    unsafe {
+        core::arch::asm! {
+            "mov cr3, {}",
+            in(reg) value,
+            options(nomem, nostack, preserves_flags)
+        }
+    }
+}
 
 pub fn align_down(addr: usize, align: usize) -> usize {
     if align.is_power_of_two() {
@@ -84,4 +107,3 @@ pub fn duration_to_timer_config(duration_ns: u64, lapic_freq_hz: u64) -> Option<
     // duration is too massive for the LAPIC hardware
     None
 }
-

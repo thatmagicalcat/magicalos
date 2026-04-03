@@ -1,8 +1,8 @@
 use core::ops::Range;
 
-use multiboot2::MemoryAreaType;
+use limine::memmap::{self, Entry};
 
-use crate::{kernel_bounds, memory::FrameAllocator};
+use crate::{HHDM_REQUEST, memory::FrameAllocator};
 
 use super::{Frame, PAGE_SIZE};
 
@@ -13,34 +13,36 @@ const FREE: u8 = 0;
 pub struct BitmapFrameAllocator {
     bitmap_slice: &'static mut [u8],
     total_frames: usize,
+    usable_frames: usize,
     allocated_frames: usize,
     last_allocated_frame: usize,
 }
 
 impl BitmapFrameAllocator {
-    pub fn new(boot_info: &multiboot2::BootInformation) -> Self {
-        let kernel_end = kernel_bounds().end;
-        let memory_areas = boot_info
-            .memory_map_tag()
-            .expect("Memory map tag not found")
-            .memory_areas();
-        let highest_address = memory_areas
+    pub fn new(entries: &[&Entry]) -> Self {
+        let hhdm_offset = HHDM_REQUEST.response().unwrap().offset as usize;
+        let highest_address = entries
             .iter()
-            .map(|area| area.end_address())
+            .map(|entry| entry.base + entry.length)
             .max()
             .expect("No memory areas found") as usize;
+
         let total_frames = highest_address / PAGE_SIZE;
         let bitmap_array_size = total_frames / 8;
-        let align_mask = PAGE_SIZE - 1;
-        let bitmap_array_start_ptr = if kernel_end & align_mask == 0 {
-            // already aligned
-            kernel_end
-        } else {
-            (kernel_end | align_mask) + 1
-        } as *mut u8;
 
-        let bitmap_slice =
-            unsafe { core::slice::from_raw_parts_mut(bitmap_array_start_ptr, bitmap_array_size) };
+        // find a block of memory which is big enough to hold the bitmap slice
+        let blocks = entries
+            .iter()
+            .find(|entry| entry.length as usize >= bitmap_array_size)
+            .expect("Could not find a memory area large enough to hold the bitmap slice");
+        let bitmap_array_start_virt_addr = blocks.base as usize + hhdm_offset;
+
+        let bitmap_slice = unsafe {
+            core::slice::from_raw_parts_mut(
+                bitmap_array_start_virt_addr as *mut u8,
+                bitmap_array_size,
+            )
+        };
 
         bitmap_slice.fill(USED);
 
@@ -48,7 +50,7 @@ impl BitmapFrameAllocator {
             "Bitmap frame allocator initialized with total frames: {}, bitmap size: {} KiB, bitmap start: {:#X}",
             total_frames,
             bitmap_array_size / 1024,
-            bitmap_array_start_ptr as usize
+            bitmap_array_start_virt_addr
         );
 
         let mut allocator = Self {
@@ -56,43 +58,29 @@ impl BitmapFrameAllocator {
             bitmap_slice,
             allocated_frames: 0,
             last_allocated_frame: 0,
+            usable_frames: 0,
         };
 
-        // mark the available memory areas as free
-        memory_areas
+        // mark the usable memory areas as free
+        entries
             .iter()
-            .filter(|area| area.typ() == MemoryAreaType::Available)
-            .for_each(|area| {
-                let start_frame = area.start_address() as usize / PAGE_SIZE;
-                let end_frame = (area.end_address() as usize).div_ceil(PAGE_SIZE);
+            .filter(|entry| entry.type_ == memmap::MEMMAP_USABLE)
+            .for_each(|entry| {
+                let start_frame = entry.base as usize / PAGE_SIZE;
+                let end_frame = ((entry.base + entry.length) as usize).div_ceil(PAGE_SIZE);
+                allocator.usable_frames += end_frame - start_frame;
                 allocator.mark_frames_free(start_frame..end_frame);
             });
 
-        // mark the memory used by kernel as used
-        let kernel_start_frame = kernel_bounds().start / PAGE_SIZE;
-        let kernel_end_frame = kernel_bounds().end.div_ceil(PAGE_SIZE);
-
-        allocator.allocated_frames += kernel_end_frame - kernel_start_frame;
-        allocator.mark_frames_used(kernel_start_frame..kernel_end_frame);
-
-        // mark the multiboot info structure as used
-        let mb_start_frame = boot_info.start_address() / PAGE_SIZE;
-        let mb_end_frame = boot_info.end_address().div_ceil(PAGE_SIZE);
-
-        allocator.allocated_frames += mb_end_frame - mb_start_frame;
-        allocator.mark_frames_used(mb_start_frame..mb_end_frame);
+        // everything else is already marked as used, so we don't need to do anything for reserved
+        // areas
 
         // mark the bitmap array itself as used
-        let bitmap_start_frame = bitmap_array_start_ptr as usize / PAGE_SIZE;
-        let bitmap_end_frame =
-            (bitmap_array_start_ptr as usize + bitmap_array_size).div_ceil(PAGE_SIZE);
+        let bitmap_phys_base = blocks.base as usize;
+        let bitmap_start_frame = bitmap_phys_base / PAGE_SIZE;
+        let bitmap_end_frame = (bitmap_phys_base + bitmap_array_size).div_ceil(PAGE_SIZE);
 
-        allocator.allocated_frames += bitmap_end_frame - bitmap_start_frame;
         allocator.mark_frames_used(bitmap_start_frame..bitmap_end_frame);
-
-        // mark the first frame as used to avoid allocating the null pointer
-        allocator.allocated_frames += 1;
-        allocator.mark_frame_used(0);
 
         allocator
     }

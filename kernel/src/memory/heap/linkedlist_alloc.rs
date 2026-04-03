@@ -137,12 +137,13 @@ impl LinkedListAllocator {
     }
 
     pub fn kfree(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        let size = layout.size().max(FreeBlock::MIN_SIZE);
+        let effective_size = layout.size().max(FreeBlock::MIN_SIZE);
         let addr = ptr.as_ptr() as usize;
 
         if log::log_enabled!(log::Level::Trace) {
-            let es = format_args!(" (effective: {size})");
-            let ea = format_args!(" (effective: {})", layout.align());
+            let effective_align = layout.align().max(FreeBlock::ALIGNMENT);
+            let es = format_args!(" (effective: {effective_size})");
+            let ea = format_args!(" (effective: {effective_align})");
             let empty = format_args!("");
 
             log::trace!(
@@ -164,7 +165,7 @@ impl LinkedListAllocator {
 
         let new_block_ptr = addr as *mut FreeBlock;
         let new_block = FreeBlock {
-            size,
+            size: effective_size,
             next: self.first.next.take(),
         };
 
