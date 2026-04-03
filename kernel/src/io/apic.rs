@@ -3,7 +3,13 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use bitflags::bitflags;
 
 use super::port::Port;
-use crate::{hpet::Hpet, interrupts, utils::rdmsr};
+use crate::{
+    HHDM_REQUEST,
+    hpet::Hpet,
+    interrupts,
+    memory::{Frame, FrameAllocator, paging::{EntryFlags, Mapper, VirtualAddress}},
+    utils::rdmsr,
+};
 
 static LAPIC_TIMER_FREQ: AtomicU64 = AtomicU64::new(0);
 
@@ -86,7 +92,17 @@ pub fn send_eoi() {
     write(LAPIC_EOI_REG_OFFSET, 0);
 }
 
-pub fn init() {
+pub fn init(mapper: &mut Mapper, allocator: &mut impl FrameAllocator) {
+    let lapic_addr = LAPIC_PHYSICAL_ADDRESS_DEFAULT;
+    let lapic_frame = Frame::from_addr(lapic_addr);
+    let page = VirtualAddress(lapic_addr as _);
+    let flags = EntryFlags::WRITABLE
+        | EntryFlags::WRITE_THROUGH
+        | EntryFlags::CACHE_DISABLE
+        | EntryFlags::PRESENT;
+
+    mapper.map_to(page, lapic_frame, flags, allocator);
+
     log::info!("Disabling legacy PIC");
     pic_disable();
 

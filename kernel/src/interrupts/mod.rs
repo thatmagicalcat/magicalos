@@ -1,7 +1,5 @@
 use bitflags::bitflags;
 
-use crate::println;
-
 pub use idt::IDT;
 
 mod handlers;

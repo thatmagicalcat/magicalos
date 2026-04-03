@@ -15,50 +15,20 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct KernelAcpiHandler<const N: usize> {
-    allocator: Arc<Mutex<memory::TinyAllocator<N>>>,
-}
+pub struct KernelAcpiHandler;
 
-impl<const N: usize> KernelAcpiHandler<N> {
-    pub const fn new(allocator: Arc<Mutex<memory::TinyAllocator<N>>>) -> Self {
-        Self { allocator }
-    }
-
-    pub fn into_allocator(self) -> memory::TinyAllocator<N> {
-        Arc::try_unwrap(self.allocator)
-            .expect("Failed to unwrap allocator Arc")
-            .into_inner()
-    }
-}
-
-impl<const N: usize> Handler for KernelAcpiHandler<N> {
+impl Handler for KernelAcpiHandler {
     unsafe fn map_physical_region<T>(
         &self,
         physical_address: usize,
         size: usize,
     ) -> PhysicalMapping<Self, T> {
-        let mut active_page_table = ActivePageTable::new();
-        let mut allocator = self.allocator.lock();
-
-        // page-align the physical address
-        let start_frame = Frame::from_addr(utils::align_down(physical_address, memory::PAGE_SIZE));
-        let end_frame =
-            Frame::from_addr(utils::align_up(physical_address + size, memory::PAGE_SIZE));
-
-        for frame in start_frame.0..end_frame.0 {
-            // identity map the kernel section
-            let page = VirtualAddress((frame * PAGE_SIZE) as _);
-            active_page_table.mapper_mut().map_if_unmapped(
-                page,
-                Frame(frame),
-                EntryFlags::WRITABLE | EntryFlags::PRESENT,
-                &mut *allocator,
-            );
-        }
+        let hhdm_offset = crate::HHDM_REQUEST.response().unwrap().offset as usize;
+        let virtual_address = physical_address + hhdm_offset;
 
         PhysicalMapping {
             physical_start: physical_address,
-            virtual_start: NonNull::new(physical_address as *mut T)
+            virtual_start: NonNull::new(virtual_address as *mut T)
                 .expect("Failed to create NonNull pointer for mapped region"),
             region_length: size,
             mapped_length: size,
