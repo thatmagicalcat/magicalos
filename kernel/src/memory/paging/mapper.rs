@@ -89,7 +89,7 @@ impl Mapper {
         flags: EntryFlags,
         allocator: &mut A,
     ) {
-        log::trace!("map(): {:#010x} -> {:#010x}, flags = {flags:?}", page.0, frame.start_address());
+        // log::trace!("map(): {:#010x} -> {:#010x}, flags = {flags:?}", page.0, frame.start_address());
 
         let p4 = self.as_mut();
         let p3 = p4.next_table_create(page.p4_idx() as _, allocator);
