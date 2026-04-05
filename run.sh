@@ -15,6 +15,7 @@ echo "Building ISO Image with kernel: $KERNEL_PATH"
 
 mkdir -p $ISO_ROOT/boot/limine
 
+cp -v $PROJECT_ROOT/ter-u32n.psf $ISO_ROOT/boot/limine/
 cp -v $PROJECT_ROOT/wallpaper.png $ISO_ROOT/boot/limine/
 cp -v $PROJECT_ROOT/limine.conf $ISO_ROOT/boot/limine/
 cp -v $KERNEL_PATH $ISO_ROOT/boot/kernel
@@ -42,7 +43,7 @@ qemu-system-x86_64                                     \
     -enable-kvm                                        \
     -debugcon stdio                                    \
     -cpu host                                          \
-    -display gtk                                       \
+    -display gtk,zoom-to-fit=off                       \
     -device ahci,id=ahci0                              \
     -drive id=disk0,file=$DISK_IMG,format=raw,if=none  \
     -device ide-hd,drive=disk0,bus=ahci0.0
