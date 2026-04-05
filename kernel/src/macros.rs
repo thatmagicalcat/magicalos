@@ -1,16 +1,19 @@
 use core::fmt::Write;
 
-use crate::io::{qemu_debug::QEMU_DEBUGCON, serial::SERIAL};
+use crate::{
+    io::{qemu_debug::QEMU_DEBUGCON},
+    terminal::TERMINAL,
+};
 
 #[macro_export]
-macro_rules! serial_print {
-    ($($arg:tt)*) => ($crate::macros::_serial_print(format_args!($($arg)*)));
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::macros::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
-macro_rules! serial_println {
-    () => ($crate::serial_print!("\n"));
-    ($($arg:tt)*) => ($crate::serial_print!("{}\n", format_args!($($arg)*)));
+macro_rules! println {
+    () => ($crate::serial_print!("\r\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\r\n", format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -75,11 +78,10 @@ macro_rules! flush_tlb {
     };
 }
 
-
 #[doc(hidden)]
-pub fn _serial_print(args: core::fmt::Arguments) {
+pub fn _print(args: core::fmt::Arguments) {
     crate::interrupts::without_interrupts(|| {
-        SERIAL.lock().write_fmt(args).unwrap();
+        TERMINAL.lock().as_mut().unwrap().write_fmt(args).unwrap();
     });
 }
 
