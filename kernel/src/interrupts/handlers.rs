@@ -1,6 +1,6 @@
 use core::arch::asm;
 
-use crate::{dbg_println, io::{apic, port::Port}};
+use crate::io::{apic, port::Port};
 
 use super::*;
 
@@ -17,7 +17,8 @@ pub struct ExceptionStackFrame {
 pub extern "C" fn breakpoint_handler(stack_frame: &ExceptionStackFrame) {
     log::warn!(
         "\nEXCEPTION: BREAKPOINT at {:#X}\n{:#?}",
-        stack_frame.rip, stack_frame
+        stack_frame.rip,
+        stack_frame
     );
 }
 
@@ -68,7 +69,8 @@ pub extern "C" fn general_protection_fault_handler(
 pub extern "C" fn spurious_interrupt_handler(stack_frame: &ExceptionStackFrame) {
     log::warn!(
         "\nEXCEPTION: SPURIOUS INTERRUPT at {:#X}\n{:#?}",
-        stack_frame.rip, stack_frame
+        stack_frame.rip,
+        stack_frame
     );
 }
 

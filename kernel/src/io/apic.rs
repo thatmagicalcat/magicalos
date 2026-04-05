@@ -4,7 +4,6 @@ use bitflags::bitflags;
 
 use super::port::Port;
 use crate::{
-    HHDM_REQUEST,
     hpet::Hpet,
     interrupts,
     memory::{Frame, FrameAllocator, paging::{EntryFlags, Mapper, VirtualAddress}},

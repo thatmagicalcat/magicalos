@@ -1,18 +1,10 @@
-use alloc::sync::Arc;
 use core::ptr::NonNull;
 
 use acpi::{Handler, PciAddress, PhysicalMapping};
 
-use spin::Mutex;
+use crate::limine_requests::HHDM_REQUEST;
 
 use super::port::Port;
-use crate::{
-    memory::{
-        self, Frame, PAGE_SIZE,
-        paging::{ActivePageTable, EntryFlags, VirtualAddress},
-    },
-    utils,
-};
 
 #[derive(Clone)]
 pub struct KernelAcpiHandler;
@@ -23,7 +15,7 @@ impl Handler for KernelAcpiHandler {
         physical_address: usize,
         size: usize,
     ) -> PhysicalMapping<Self, T> {
-        let hhdm_offset = crate::HHDM_REQUEST.response().unwrap().offset as usize;
+        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset as usize };
         let virtual_address = physical_address + hhdm_offset;
 
         PhysicalMapping {

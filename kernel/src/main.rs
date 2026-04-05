@@ -5,7 +5,6 @@
 extern crate alloc;
 
 mod gdt;
-mod graphics;
 mod hpet;
 mod interrupts;
 mod io;
@@ -18,10 +17,7 @@ mod task;
 mod thread;
 mod utils;
 mod volatile;
-
-use core::ptr::null_mut;
-
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker, request::*};
+mod limine_requests;
 
 #[rustfmt::skip]
 const MIN_LOG_LEVEL: log::LevelFilter = {
@@ -32,50 +28,8 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
     #[cfg(log_level = "error")] { log::LevelFilter::Error }
 };
 
-/// The virtual address where the Linear framebuffer is mapped
-const LFB_VIRT_ADDR: usize = 0xFFFF_8000_0000_0000;
-const WALLPAPER_DATA: &[u8] = include_bytes!("../../wallpaper.bin");
-// const FONT_DATA: &[u8] = include_bytes!("../../ter-u32n.psf");
-
-#[used]
-#[unsafe(link_section = ".limine_requests_start")]
-static REQUESTS_START: RequestsStartMarker = RequestsStartMarker::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static BOOTLOADER: BootloaderInfoRequest = BootloaderInfoRequest::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static MEMMAP: MemmapRequest = MemmapRequest::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests")]
-static RSDP_REQUEST: RsdpRequest = RsdpRequest::new();
-
-#[used]
-#[unsafe(link_section = ".limine_requests_end")]
-static REQUESTS_END: RequestsEndMarker = RequestsEndMarker::new();
-
 #[unsafe(no_mangle)]
 pub extern "C" fn kmain() -> ! {
-    assert!(
-        BASE_REVISION.is_supported(),
-        "Limine base revision not supported"
-    );
-
     kernel::init();
 
     loop {

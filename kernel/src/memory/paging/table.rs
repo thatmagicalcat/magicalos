@@ -4,10 +4,8 @@ use core::{
     ops::{Deref, DerefMut, Index, IndexMut},
 };
 
-use limine::memmap::Entry;
-
 use crate::{
-    HHDM_REQUEST, flush_tlb,
+    limine_requests::HHDM_REQUEST,
     memory::{
         Frame, FrameAllocator,
         paging::{EntryFlags, Mapper, PHYSICAL_ADDRESS_MASK, VirtualAddress},
@@ -68,7 +66,7 @@ impl<L: TableLevel> PageTable<L> {
             return Some(
                 entry
                     .get_physical_address()
-                    .to_virtual(HHDM_REQUEST.response().unwrap().offset),
+                    .to_virtual(unsafe { (*HHDM_REQUEST.response).offset }),
             );
         }
 
@@ -157,7 +155,7 @@ impl ActivePageTable {
         Self {
             mapper: Mapper::new(
                 utils::read_cr3()
-                    .to_virtual(HHDM_REQUEST.response().unwrap().offset)
+                    .to_virtual(unsafe { (*HHDM_REQUEST.response).offset })
                     .as_mut_ptr(),
             ),
         }

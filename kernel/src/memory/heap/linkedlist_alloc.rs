@@ -133,6 +133,7 @@ impl LinkedListAllocator {
             last = current;
         }
 
+        log::error!("Heap: Out of memory, allocation of {effective_size} (align: {effective_align}) failed");
         None
     }
 

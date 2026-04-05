@@ -1,8 +1,6 @@
 use core::ops::Range;
 
-use limine::memmap::{self, Entry};
-
-use crate::{HHDM_REQUEST, memory::FrameAllocator};
+use crate::{limine_requests::HHDM_REQUEST, memory::FrameAllocator};
 
 use super::{Frame, PAGE_SIZE};
 
@@ -19,10 +17,11 @@ pub struct BitmapFrameAllocator {
 }
 
 impl BitmapFrameAllocator {
-    pub fn new(entries: &[&Entry]) -> Self {
-        let hhdm_offset = HHDM_REQUEST.response().unwrap().offset as usize;
+    pub fn new(entries: &[*mut limine::limine_memmap_entry]) -> Self {
+        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset as usize };
         let highest_address = entries
             .iter()
+            .map(|&entry_ptr| unsafe { &*entry_ptr })
             .map(|entry| entry.base + entry.length)
             .max()
             .expect("No memory areas found") as usize;
@@ -33,8 +32,10 @@ impl BitmapFrameAllocator {
         // find a block of memory which is big enough to hold the bitmap slice
         let blocks = entries
             .iter()
+            .map(|&entry_ptr| unsafe { &*entry_ptr })
             .find(|entry| entry.length as usize >= bitmap_array_size)
             .expect("Could not find a memory area large enough to hold the bitmap slice");
+
         let bitmap_array_start_virt_addr = blocks.base as usize + hhdm_offset;
 
         let bitmap_slice = unsafe {
@@ -64,7 +65,8 @@ impl BitmapFrameAllocator {
         // mark the usable memory areas as free
         entries
             .iter()
-            .filter(|entry| entry.type_ == memmap::MEMMAP_USABLE)
+            .map(|&entry_ptr| unsafe { &*entry_ptr })
+            .filter(|entry| entry.type_ == limine::LIMINE_MEMMAP_USABLE as u64)
             .for_each(|entry| {
                 let start_frame = entry.base as usize / PAGE_SIZE;
                 let end_frame = ((entry.base + entry.length) as usize).div_ceil(PAGE_SIZE);

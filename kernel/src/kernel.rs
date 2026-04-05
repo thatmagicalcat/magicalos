@@ -2,75 +2,34 @@
 //! fun starts in the modules :)
 //! This file exists because I want to keep main.rs clean
 
-use core::ptr::null;
+use core::alloc::Layout;
+use core::{ffi, ptr};
 
-use crate::{graphics::PSF2Font, memory::paging::EntryFlags, thread::Thread, *};
+use alloc::alloc::{alloc, dealloc};
+
+use crate::limine_requests::*;
+use crate::*;
 
 pub fn init() {
     init_logging();
     gdt::init();
     interrupts::init();
 
-    let memmap = MEMMAP.response().unwrap().entries();
-    log_memmap(memmap);
+    log::info!("{:p}", MEMMAP.response);
+    log::info!("{}", unsafe { (*MEMMAP.response).entry_count });
 
+    let memmap = unsafe {
+        let response = &*MEMMAP.response;
+        core::slice::from_raw_parts(response.entries, response.entry_count as usize)
+    };
+
+    log_memmap(memmap);
     let mut allocator = memory::BitmapFrameAllocator::new(memmap);
 
     let mut active_table = memory::paging::ActivePageTable::new();
-
-    let vaddr = 0xDEADBEEF_u64;
-    active_table.map(vaddr.into(), EntryFlags::WRITABLE, &mut allocator);
-
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
 
-    // let Some(Ok(fb_tag)) = boot_info.framebuffer_tag() else {
-    //     panic!("Framebuffer tag not found in multiboot info / unsupported framebuffer format");
-    // };
-    //
-    // log::info!(
-    //     "Framebuffer: {}x{}, depth: {} bpp, pitch: {} bytes, address: {:#010x}",
-    //     fb_tag.width(),
-    //     fb_tag.height(),
-    //     fb_tag.bpp(),
-    //     fb_tag.pitch(),
-    //     fb_tag.address(),
-    // );
-    //
-    // let format = fb_tag
-    //     .buffer_type()
-    //     .expect("Unsupported framebuffer format");
-    //
-    // match format {
-    //     multiboot2::FramebufferType::RGB { red, green, blue } => {
-    //         log::info!(
-    //             "Framebuffer format: RGB, (position, size) red: ({}, {}), green: ({}, {}), blue: ({}, {})",
-    //             red.position,
-    //             red.size,
-    //             green.position,
-    //             green.size,
-    //             blue.position,
-    //             blue.size
-    //         );
-    //
-    //         log::info!("Initializing graphics console with PSF2 font");
-    //         graphics::init_window_console(
-    //             graphics::FrameBufferInfo {
-    //                 width: fb_tag.width(),
-    //                 height: fb_tag.height(),
-    //                 bits_per_pixel: fb_tag.bpp(),
-    //                 pitch: fb_tag.pitch(),
-    //                 r_shift: red.position,
-    //                 g_shift: green.position,
-    //                 b_shift: blue.position,
-    //             },
-    //             graphics::PSF2Font::new(FONT_DATA).expect("Failed to load PSF2 font"),
-    //         );
-    //     }
-    //
-    //     _ => panic!("Unsupported framebuffer format"),
-    // };
-
-    let acpi_tables = parse_acpi_tables(&mut allocator);
+    let acpi_tables = parse_acpi_tables();
     register_ioapics(&acpi_tables, &mut allocator, &mut active_table);
 
     let hpet_info =
@@ -96,61 +55,13 @@ pub fn init() {
 
     let pci_devices = io::pci::enumerate();
     log::info!("Found {} PCI devices:", pci_devices.len());
+
     for device in pci_devices {
         log::info!("  - {}", device);
     }
 
-    let fb @ &&limine::framebuffer::Framebuffer {
-        width,
-        height,
-        pitch,
-        bpp,
-        memory_model,
-        red_mask_size,
-        red_mask_shift,
-        green_mask_size,
-        green_mask_shift,
-        blue_mask_size,
-        blue_mask_shift,
-        ..
-    } = FRAMEBUFFER_REQUEST
-        .response()
-        .unwrap()
-        .framebuffers()
-        .first()
-        .expect("no framebuffer");
-
-    let flanterm_ctx: *mut flanterm::flanterm_context = unsafe {
-        flanterm::flanterm_fb_init(
-            None,
-            None,
-            fb.address() as _,
-            width as _,
-            height as _,
-            pitch as _,
-            red_mask_size as _,
-            red_mask_shift,
-            green_mask_size,
-            green_mask_shift,
-            blue_mask_size,
-            blue_mask_shift,
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            null_mut(),
-            0,
-            0,
-            1,
-            2,
-            2,
-            0,
-            0,
-        )
-    };
+    let flanterm_ctx = flanterm_console_init();
+    log::info!("erm");
 
     unsafe {
         let t = "Hello, World!\n\r";
@@ -176,27 +87,154 @@ pub fn init() {
     interrupts::enable_interrupts();
 }
 
-fn log_memmap(memory_map: &[&limine::memmap::Entry]) {
-    let hhdm_offset = HHDM_REQUEST.response().unwrap().offset;
+fn flanterm_console_init() -> *mut flanterm::flanterm_context {
+    let fb = unsafe {
+        assert!(!FRAMEBUFFER_REQUEST.response.is_null());
+
+        let response = &*FRAMEBUFFER_REQUEST.response;
+
+        assert!(response.framebuffer_count > 0, "No framebuffer found");
+        assert!(
+            !response.framebuffers.is_null(),
+            "Framebuffers array pointer is null"
+        );
+
+        let first_fb = *response.framebuffers;
+        assert!(!first_fb.is_null(), "First framebuffer pointer is null");
+
+        &*first_fb
+    };
+
+    // let mut params = None::<limine::limine_flanterm_fb_init_params>;
+    let mut params = unsafe {
+        let resp = FLANTERM_FB_INIT_PARAMS_REQUEST.response;
+        if resp.is_null() {
+            log::error!("Flanterm init parameters are not provided by the bootloader");
+            None
+        } else if (*resp).entry_count == 0 || (*resp).entries.is_null() {
+            log::error!("Flanterm init parameters entry list is empty or null");
+            None
+        } else {
+            Some(**(*resp).entries)
+        }
+    };
+
+    let (
+        canvas,
+        ansi_colours,
+        ansi_bright_colours,
+        default_bg,
+        default_fg,
+        default_bg_bright,
+        default_fg_bright,
+        font,
+        font_width,
+        font_height,
+        font_spacing,
+        font_scale_x,
+        font_scale_y,
+        margin,
+        rotation,
+    ) = if let Some(ref mut p) = params {
+        (
+            p.canvas,
+            p.ansi_colours.as_mut_ptr(),
+            p.ansi_bright_colours.as_mut_ptr(),
+            &raw mut p.default_bg,
+            &raw mut p.default_fg,
+            &raw mut p.default_bg_bright,
+            &raw mut p.default_fg_bright,
+            p.font,
+            p.font_width as _,
+            p.font_height as _,
+            p.font_spacing as _,
+            p.font_scale_x as _,
+            p.font_scale_y as _,
+            p.margin as _,
+            p.rotation as _,
+        )
+    } else {
+        (
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+        )
+    };
+
+    unsafe {
+        extern "C" fn kmalloc(size: usize) -> *mut ffi::c_void {
+            unsafe { alloc(Layout::from_size_align_unchecked(size, 1)) as _ }
+        }
+
+        extern "C" fn kfree(ptr: *mut ffi::c_void, size: usize) {
+            unsafe { dealloc(ptr as _, Layout::from_size_align_unchecked(size, 1)) };
+        }
+
+        flanterm::flanterm_fb_init(
+            Some(kmalloc),
+            Some(kfree),
+            fb.address as _,
+            fb.width as _,
+            fb.height as _,
+            fb.pitch as _,
+            fb.red_mask_size as _,
+            fb.red_mask_shift,
+            fb.green_mask_size,
+            fb.green_mask_shift,
+            fb.blue_mask_size,
+            fb.blue_mask_shift,
+            canvas,
+            ansi_colours,
+            ansi_bright_colours,
+            default_bg,
+            default_fg,
+            default_bg_bright,
+            default_fg_bright,
+            font,
+            font_width,
+            font_height,
+            font_spacing,
+            font_scale_x,
+            font_scale_y,
+            margin,
+            rotation,
+        )
+    }
+}
+
+fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
+    let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset };
     log::info!("Memory areas:");
 
-    for entry in memory_map {
+    for entry in memory_map.iter().map(|e| unsafe { &**e }) {
         let virtual_start = entry.base + hhdm_offset;
-        use limine::memmap;
+
         log::info!(
             "  - virt {virtual_start:#010x} -> phys {:#010x}, size: {} KiB, type: {}",
             entry.base,
             entry.length / 1024,
-            match entry.type_ {
-                memmap::MEMMAP_ACPI_NVS => "ACPI NVS",
-                memmap::MEMMAP_ACPI_RECLAIMABLE => "ACPI RECLAIMABLE",
-                memmap::MEMMAP_BAD_MEMORY => "BAD MEMORY",
-                memmap::MEMMAP_BOOTLOADER_RECLAIMABLE => "BOOTLOADER RECLAIMABLE",
-                memmap::MEMMAP_EXECUTABLE_AND_MODULES => "KERNEL",
-                memmap::MEMMAP_FRAMEBUFFER => "FRAMEBUFFER",
-                memmap::MEMMAP_MAPPED_RESERVED => "MAPPED RESERVED",
-                memmap::MEMMAP_RESERVED => "RESERVED",
-                memmap::MEMMAP_USABLE => "USABLE",
+            match entry.type_ as u32 {
+                limine::LIMINE_MEMMAP_ACPI_NVS => "ACPI NVS",
+                limine::LIMINE_MEMMAP_ACPI_RECLAIMABLE => "ACPI RECLAIMABLE",
+                limine::LIMINE_MEMMAP_BAD_MEMORY => "BAD MEMORY",
+                limine::LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE => "BOOTLOADER RECLAIMABLE",
+                limine::LIMINE_MEMMAP_EXECUTABLE_AND_MODULES => "KERNEL",
+                limine::LIMINE_MEMMAP_FRAMEBUFFER => "FRAMEBUFFER",
+                limine::LIMINE_MEMMAP_RESERVED => "MAPPED RESERVED",
+                limine::LIMINE_MEMMAP_RESERVED_MAPPED => "RESERVED MAPPED",
+                limine::LIMINE_MEMMAP_USABLE => "USABLE",
 
                 _ => unreachable!(),
             }
@@ -242,13 +280,11 @@ fn register_ioapics(
         .for_each(ioapic::register);
 }
 
-fn parse_acpi_tables(
-    allocator: &mut memory::BitmapFrameAllocator,
-) -> acpi::AcpiTables<io::acpi::KernelAcpiHandler> {
+fn parse_acpi_tables() -> acpi::AcpiTables<io::acpi::KernelAcpiHandler> {
     log::info!("Parsing ACPI tables");
 
-    let response = RSDP_REQUEST.response().unwrap();
-    let rsdp_phys = response.address as usize - HHDM_REQUEST.response().unwrap().offset as usize;
+    let response = unsafe { &*RSDP_REQUEST.response };
+    let rsdp_phys = response.address as usize - unsafe { (*HHDM_REQUEST.response).offset as usize };
 
     log::info!("RSDP physical address: {:#010x}", rsdp_phys);
 
