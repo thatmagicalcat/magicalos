@@ -2,11 +2,6 @@
 //! fun starts in the modules :)
 //! This file exists because I want to keep main.rs clean
 
-use core::alloc::Layout;
-use core::{ffi, ptr};
-
-use alloc::alloc::{alloc, dealloc};
-
 use crate::limine_requests::*;
 use crate::*;
 
@@ -14,9 +9,6 @@ pub fn init() {
     init_logging();
     gdt::init();
     interrupts::init();
-
-    log::info!("{:p}", MEMMAP.response);
-    log::info!("{}", unsafe { (*MEMMAP.response).entry_count });
 
     let memmap = unsafe {
         let response = &*MEMMAP.response;
@@ -29,12 +21,14 @@ pub fn init() {
     let mut active_table = memory::paging::ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
 
+    terminal::init();
+
     let acpi_tables = parse_acpi_tables();
     register_ioapics(&acpi_tables, &mut allocator, &mut active_table);
 
     let hpet_info =
         acpi::HpetInfo::new(&acpi_tables).expect("Failed to find HPET info in ACPI tables");
-    log::info!("HPET info: {:?}", hpet_info);
+    log::info!("HPET info: {:#?}", hpet_info);
 
     let base_addr = hpet_info.base_address;
     let hpet = hpet::HPET
@@ -60,14 +54,6 @@ pub fn init() {
         log::info!("  - {}", device);
     }
 
-    let flanterm_ctx = flanterm_console_init();
-    log::info!("erm");
-
-    unsafe {
-        let t = "Hello, World!\n\r";
-        flanterm::flanterm_write(flanterm_ctx, t.as_ptr() as _, t.len());
-    }
-
     let timer_cfg = utils::duration_to_timer_config(
         core::time::Duration::from_millis(10).as_nanos() as _,
         io::apic::get_timer_frequency(),
@@ -87,132 +73,6 @@ pub fn init() {
     interrupts::enable_interrupts();
 }
 
-fn flanterm_console_init() -> *mut flanterm::flanterm_context {
-    let fb = unsafe {
-        assert!(!FRAMEBUFFER_REQUEST.response.is_null());
-
-        let response = &*FRAMEBUFFER_REQUEST.response;
-
-        assert!(response.framebuffer_count > 0, "No framebuffer found");
-        assert!(
-            !response.framebuffers.is_null(),
-            "Framebuffers array pointer is null"
-        );
-
-        let first_fb = *response.framebuffers;
-        assert!(!first_fb.is_null(), "First framebuffer pointer is null");
-
-        &*first_fb
-    };
-
-    // let mut params = None::<limine::limine_flanterm_fb_init_params>;
-    let mut params = unsafe {
-        let resp = FLANTERM_FB_INIT_PARAMS_REQUEST.response;
-        if resp.is_null() {
-            log::error!("Flanterm init parameters are not provided by the bootloader");
-            None
-        } else if (*resp).entry_count == 0 || (*resp).entries.is_null() {
-            log::error!("Flanterm init parameters entry list is empty or null");
-            None
-        } else {
-            Some(**(*resp).entries)
-        }
-    };
-
-    let (
-        canvas,
-        ansi_colours,
-        ansi_bright_colours,
-        default_bg,
-        default_fg,
-        default_bg_bright,
-        default_fg_bright,
-        font,
-        font_width,
-        font_height,
-        font_spacing,
-        font_scale_x,
-        font_scale_y,
-        margin,
-        rotation,
-    ) = if let Some(ref mut p) = params {
-        (
-            p.canvas,
-            p.ansi_colours.as_mut_ptr(),
-            p.ansi_bright_colours.as_mut_ptr(),
-            &raw mut p.default_bg,
-            &raw mut p.default_fg,
-            &raw mut p.default_bg_bright,
-            &raw mut p.default_fg_bright,
-            p.font,
-            p.font_width as _,
-            p.font_height as _,
-            p.font_spacing as _,
-            p.font_scale_x as _,
-            p.font_scale_y as _,
-            p.margin as _,
-            p.rotation as _,
-        )
-    } else {
-        (
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            0,
-        )
-    };
-
-    unsafe {
-        extern "C" fn kmalloc(size: usize) -> *mut ffi::c_void {
-            unsafe { alloc(Layout::from_size_align_unchecked(size, 1)) as _ }
-        }
-
-        extern "C" fn kfree(ptr: *mut ffi::c_void, size: usize) {
-            unsafe { dealloc(ptr as _, Layout::from_size_align_unchecked(size, 1)) };
-        }
-
-        flanterm::flanterm_fb_init(
-            Some(kmalloc),
-            Some(kfree),
-            fb.address as _,
-            fb.width as _,
-            fb.height as _,
-            fb.pitch as _,
-            fb.red_mask_size as _,
-            fb.red_mask_shift,
-            fb.green_mask_size,
-            fb.green_mask_shift,
-            fb.blue_mask_size,
-            fb.blue_mask_shift,
-            canvas,
-            ansi_colours,
-            ansi_bright_colours,
-            default_bg,
-            default_fg,
-            default_bg_bright,
-            default_fg_bright,
-            font,
-            font_width,
-            font_height,
-            font_spacing,
-            font_scale_x,
-            font_scale_y,
-            margin,
-            rotation,
-        )
-    }
-}
 
 fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
     let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset };
@@ -323,7 +183,7 @@ pub fn init_logging() {
                 let line = record.line().unwrap_or(0);
 
                 dbg_println!(
-                    "{level_color}[{: <5}]{reset} {meta_color}[{file}:{line}] {reset}{level_color}{}{reset}",
+                    "{level_color}[{: <5}]{reset} {meta_color}[\x1b[3m{file:>20}:{line:<3}\x1b[23m] {reset}{level_color}{}{reset}",
                     record.level(),
                     record.args(),
                 );

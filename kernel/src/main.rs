@@ -2,6 +2,8 @@
 #![no_main]
 #![warn(clippy::missing_const_for_fn)]
 
+use crate::terminal::{Color, Reset};
+
 extern crate alloc;
 
 mod gdt;
@@ -10,14 +12,15 @@ mod interrupts;
 mod io;
 mod ioapic;
 mod kernel;
+mod limine_requests;
 mod macros;
 mod memory;
 mod scheduler;
 mod task;
+mod terminal;
 mod thread;
 mod utils;
 mod volatile;
-mod limine_requests;
 
 #[rustfmt::skip]
 const MIN_LOG_LEVEL: log::LevelFilter = {
@@ -31,6 +34,8 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
 #[unsafe(no_mangle)]
 pub extern "C" fn kmain() -> ! {
     kernel::init();
+
+    println!("hello, world");
 
     loop {
         unsafe { core::arch::asm!("hlt") }
