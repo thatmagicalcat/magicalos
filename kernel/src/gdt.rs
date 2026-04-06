@@ -14,7 +14,7 @@ pub const TSS_SELECTOR: u16 = 24;
 
 fn gdt() -> &'static [GdtEntry; GDT_SIZE] {
     GDT.call_once(|| {
-        let (tss_low, tss_high) = GdtEntry::tss_seg(&TSS);
+        let (tss_low, tss_high) = GdtEntry::tss_seg(&TSS.lock());
 
         [
             GdtEntry::empty(),
