@@ -183,7 +183,7 @@ pub fn init_logging() {
                 let line = record.line().unwrap_or(0);
 
                 dbg_println!(
-                    "{level_color}[{: <5}]{reset} {meta_color}[\x1b[3m{file:>20}:{line:<3}\x1b[23m] {reset}{level_color}{}{reset}",
+                    "{level_color}[{: <5}]{reset} {meta_color}[\x1b[3m{file:>10}:{line:<3}\x1b[23m] {reset}{level_color}{}{reset}",
                     record.level(),
                     record.args(),
                 );

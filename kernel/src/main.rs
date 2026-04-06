@@ -44,6 +44,8 @@ pub extern "C" fn kmain() -> ! {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
+    println!("{}KERNEL PANIC: {}{}", Color::Red.bg(), info, Reset);
+
     log::error!("KERNEL PANIC: {info}",);
     loop {}
 }
