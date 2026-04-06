@@ -1,8 +1,9 @@
 use core::arch::naked_asm;
 
-use spin::Lazy;
+use lazy_static::lazy_static;
+use spin::{Lazy, Mutex};
 
-use crate::{memory::PAGE_SIZE, exception_handler, exception_handler_with_error_code};
+use crate::{exception_handler, exception_handler_with_error_code, memory::PAGE_SIZE};
 
 use super::{handlers::*, table::Idt};
 
@@ -28,7 +29,9 @@ struct Stack([u8; IST_STACK_SIZE]);
 const IST_TABLE_SIZE: usize = 7; // 7 entries
 static mut DOUBLE_FAULT_STACK: Stack = Stack([0; IST_STACK_SIZE]);
 
-pub static TSS: Lazy<Tss> = Lazy::new(|| Tss::default().init());
+lazy_static! {
+    pub static ref TSS: Mutex<Tss> = Mutex::new(Tss::default().init());
+}
 
 lazy_static::lazy_static! {
     pub static ref IDT: Idt = {
@@ -75,4 +78,8 @@ impl Tss {
         self.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = double_fault_stack_top;
         self
     }
+}
+
+pub fn set_kernel_stack(stack: u64) {
+    TSS.lock().privilege_stack_table[0] = stack;
 }
