@@ -29,6 +29,10 @@ impl Terminal {
 
         Self { ctx }
     }
+
+    pub fn inner(&mut self) -> *mut flanterm::flanterm_context {
+        self.ctx
+    }
 }
 
 impl core::fmt::Write for Terminal {
