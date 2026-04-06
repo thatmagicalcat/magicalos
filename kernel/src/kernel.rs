@@ -54,13 +54,13 @@ pub fn init() {
         log::info!("  - {}", device);
     }
 
+    scheduler::init();
+
     let timer_cfg = utils::duration_to_timer_config(
         core::time::Duration::from_millis(10).as_nanos() as _,
         io::apic::get_timer_frequency(),
     )
     .expect("Duration too long to convert to ticks");
-
-    scheduler::init();
 
     // slap kernel after every 10ms :)
     io::apic::set_timer(

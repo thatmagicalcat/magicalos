@@ -45,8 +45,7 @@ lazy_static::lazy_static! {
         idt.set_handler(SpuriousInterrupt, exception_handler!(spurious_interrupt_handler));
         idt.set_handler(Keyboard, exception_handler!(keyboard_handler));
         idt.set_handler(GeneralProtectionFault, exception_handler_with_error_code!(general_protection_fault_handler));
-        idt.set_handler(ApicTimer, apic_timer_wrapper);
-        idt.set_handler(Reschedule, reschedule_wrapper);
+        idt.set_handler(ApicTimer, exception_handler!(acpi_timer_interrupt));
         idt.set_handler(DoubleFault, exception_handler_with_error_code!(double_fault_handler))
             .options_mut()
             .set_stack_index(1);
