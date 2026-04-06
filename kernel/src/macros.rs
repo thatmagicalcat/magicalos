@@ -29,13 +29,11 @@ macro_rules! dbg_println {
 
 #[macro_export]
 macro_rules! dbg {
-    [ $e:expr ] => {
-        {
-            let result = $e;
-            log::debug!("{result:?}");
-            result
-        }
-    };
+    [ $e:expr ] => {{
+        let result = $e;
+        log::debug!("{} = {result:?}", stringify!($e));
+        result
+    }};
 }
 
 #[macro_export]
