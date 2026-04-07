@@ -2,7 +2,14 @@
 #![no_main]
 #![warn(clippy::missing_const_for_fn)]
 
-use crate::{scheduler::{HIGH_PRIORITY, REALTIME_PRIORITY}, terminal::{Color, Reset, TERMINAL}};
+use core::alloc::Layout;
+
+use alloc::alloc::alloc;
+
+use crate::{
+    scheduler::{NORMAL_PRIORITY, REALTIME_PRIORITY},
+    terminal::{Color, Reset},
+};
 
 extern crate alloc;
 
