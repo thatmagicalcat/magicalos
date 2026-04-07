@@ -23,6 +23,12 @@ impl TaskId {
     }
 }
 
+impl core::fmt::Display for TaskId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 pub struct Task {
     pub id: TaskId,
     pub future: Pin<Box<dyn Future<Output = ()> + Send + 'static>>,

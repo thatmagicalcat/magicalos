@@ -2,7 +2,7 @@ use core::{cell::RefCell, mem};
 
 use alloc::{boxed::Box, collections::VecDeque, rc::Rc};
 
-use crate::memory::paging::VirtualAddress;
+use crate::{memory::paging::VirtualAddress, scheduler};
 
 pub const STACK_SIZE: usize = 0x3000;
 pub const INTERRUPT_STACK_SIZE: usize = 0x3000;
@@ -54,6 +54,12 @@ impl TaskId {
 
     pub const fn into(self) -> u64 {
         self.0
+    }
+}
+
+impl core::fmt::Display for TaskId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -221,5 +227,5 @@ impl Stack for TaskStack {
 }
 
 pub fn leave_task() {
-    unimplemented!("implement syscalls bruh")
+    scheduler::exit();
 }

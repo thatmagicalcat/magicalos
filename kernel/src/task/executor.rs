@@ -6,7 +6,7 @@ use core::{
 use alloc::{collections::BTreeMap, sync::Arc};
 use crossbeam_queue::ArrayQueue;
 
-use crate::interrupts;
+use crate::{interrupts, scheduler};
 
 use super::{Task, TaskId, waker::create_waker};
 
@@ -41,17 +41,15 @@ impl Executor {
 
         loop {
             self.run_queued_tasks();
+            scheduler::reschedule();
             self.sleep_if_idle();
         }
     }
 
     fn sleep_if_idle(&self) {
-        interrupts::disable_interrupts();
-
         if self.ready_queue.is_empty() {
-            unsafe { core::arch::asm!("sti; hlt", options(nomem, nostack)) };
-        } else {
-            interrupts::enable_interrupts();
+            scheduler::block_current_task();
+            scheduler::reschedule();
         }
     }
 

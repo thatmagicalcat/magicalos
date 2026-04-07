@@ -1,9 +1,15 @@
 #![allow(static_mut_refs)]
 
-use core::cell::{RefCell, UnsafeCell};
 use alloc::rc::Rc;
+use core::cell::{RefCell, UnsafeCell};
 
-use crate::{memory::paging::VirtualAddress, scheduler::{sched::Scheduler, task::{Task, TaskId, TaskPriority}}};
+use crate::{
+    memory::paging::VirtualAddress,
+    scheduler::{
+        sched::Scheduler,
+        task::{Task, TaskId, TaskPriority},
+    },
+};
 
 mod sched;
 mod task;
@@ -38,6 +44,10 @@ pub(crate) fn get_current_interrupt_stack() -> VirtualAddress {
 
 pub(crate) fn block_current_task() -> Rc<RefCell<Task>> {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).block_current_task() }
+}
+
+pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };
 }
 
 pub fn get_current_task_id() -> TaskId {

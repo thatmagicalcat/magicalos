@@ -90,7 +90,7 @@ impl Scheduler {
     pub fn exit(&mut self) -> ! {
         interrupts::without_interrupts(|| {
             if self.current_task.borrow().status != TaskStatus::Idle {
-                log::info!("Finished task with id {:?}", self.current_task.borrow().id);
+                log::trace!("Finished task with id {:?}", self.current_task.borrow().id);
                 self.current_task.borrow_mut().status = TaskStatus::Finished;
             } else {
                 panic!("Cannot terminate idle task");
@@ -106,7 +106,7 @@ impl Scheduler {
         // if we have finished tasks -> drop tasks -> deallocate stack (implicit)
         while let Some(task_id) = self.finished_tasks.pop_front() {
             if self.tasks.remove(&task_id).is_some() {
-                log::info!("Dropping task with id {:?}", task_id);
+                log::trace!("Dropping task with id {:?}", task_id);
                 // ref count - 1
             } else {
                 log::error!("Failed to drop task with id {:?} - not found", task_id);
@@ -134,10 +134,10 @@ impl Scheduler {
         }
 
         if let Some(next_task) = next_task {
-            let (next_id, next_sp) = {
+            let next_sp = {
                 let mut b = next_task.borrow_mut();
                 b.status = TaskStatus::Running;
-                (b.id, b.last_stack_ptr)
+                b.last_stack_ptr
             };
 
             if current_status == TaskStatus::Running {
@@ -183,6 +183,15 @@ impl Scheduler {
                 );
             }
         })
+    }
+
+    pub fn wakeup_task(&mut self, task: &RcTask) {
+        if task.borrow().status == TaskStatus::Blocked {
+            log::trace!("Waking up task id: {:?}", task.borrow().id);
+
+            task.borrow_mut().status = TaskStatus::Ready;
+            self.ready_queue.push(task);
+        }
     }
 
     pub fn get_current_task_id(&self) -> TaskId {
