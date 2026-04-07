@@ -15,26 +15,30 @@ This project was built for the sake of learning how operating systems work under
 
 ## Screenshots
 
-| Booting up | Keyboard | Kernel Panic Screen |
-|:---:|:---:|:---:|
-| <img src="./imgs/booting-up.png" width="250" alt="Boot Screen"/> | <img src="./imgs/keyboard.png" width="250" alt="Keyboard"/> | <img src="./imgs/panic.png" width="250" alt="Panic Screen"/> |
+#### Booting up
+<img src="./imgs/booting-up.png" width="500" alt="Boot Screen"/>
+
+#### Keyboard
+<img src="./imgs/keyboard.png" width="500" alt="Keyboard"/>
 
 ## Current Features
 
 What makes ThatMagicalOS magical?
 good question... even idk, but here's the progress so far xD
 
-- **Multiboot2 Booting**: Compatible with multiboot2, booted via an ISO image.
+- ~~**Multiboot2 Booting**: Compatible with multiboot2, booted via an ISO image.~~
+- **Limine Booting**: Switched to Limine bootloader for better features and easier setup.
 - **Memory Management**: 
   - Physical memory tracking using a custom Bitmap Frame Allocator.
-  - Global heap allocation (giving access to Rust's `alloc` crate, e.g. `Box`, `Arc`, `Vec`).
+  - Global heap allocator which is a LinkedList Allocator (giving access to Rust's `alloc` crate, e.g. `Box`, `Arc`, `Vec`).
 - **Hardware Integration**:
   - **APIC & IOAPIC**
 - **Asynchronous Execution**: Includes a simple `async/await` task executor! The PS/2 keyboard driver utilizes `crossbeam-queue` to handle keypresses asynchronously.
-- **Preemptive Multitasking**: OS Threads and a simple Robin Round SCheduler.
+- **Preemptive Multitasking**: OS Threads and a simple Robin Round Scheduler.
+- **Synchronization Primitives**: Custom scheduler-aware Mutex and fair spinlock implementation.
 - **Display & Logging**:
   - ~Custom VGA text buffer interface with color support~
-  - VESA graphics with a custom text renderer
+  - VESA graphics with a flanterm for a modern terminal experience.
   - qemu logging to easily see kernel traces in the host terminal.
 
 ## Getting Started
