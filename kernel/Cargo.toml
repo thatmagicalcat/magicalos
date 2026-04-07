@@ -16,6 +16,7 @@ spin = "0.10.0"
 
 flanterm = { path = "../flanterm" }
 limine = { path = "../limine" }
+lock_api = "0.4.14"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
