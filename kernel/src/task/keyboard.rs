@@ -74,12 +74,13 @@ pub async fn print_keypresses() {
     );
 
     while let Some(scancode) = scancodes.next().await {
-        if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-            if let Some(key) = keyboard.process_keyevent(key_event.clone()) {
-                match key {
-                    DecodedKey::Unicode(character) => log::debug!("{}", character),
-                    DecodedKey::RawKey(key) => log::debug!("{:?}", key),
-                }
+        if let Ok(Some(key_event)) = keyboard.add_byte(scancode)
+            && let Some(key) = keyboard.process_keyevent(key_event.clone())
+        {
+            crate::print!("{key_event:?} -> ");
+            match key {
+                DecodedKey::Unicode(character) => crate::println!("{}", character),
+                DecodedKey::RawKey(key) => crate::println!("{:?}", key),
             }
         }
     }

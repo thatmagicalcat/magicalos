@@ -17,6 +17,7 @@ pub fn init() {
 
     log_memmap(memmap);
     let mut allocator = memory::BitmapFrameAllocator::new(memmap);
+    init_user_land(&mut allocator);
 
     let mut active_table = memory::paging::ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
@@ -73,16 +74,13 @@ pub fn init() {
     interrupts::enable_interrupts();
 }
 
-
 fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
     let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset };
-    log::info!("Memory areas:");
-
+    log::info!("Memory areas:     virt -> phys       |           size | type");
     for entry in memory_map.iter().map(|e| unsafe { &**e }) {
         let virtual_start = entry.base + hhdm_offset;
-
         log::info!(
-            "  - virt {virtual_start:#010x} -> phys {:#010x}, size: {} KiB, type: {}",
+            "  * {virtual_start:#010x} -> {:#010x} | {:>10} KiB | {}",
             entry.base,
             entry.length / 1024,
             match entry.type_ as u32 {
