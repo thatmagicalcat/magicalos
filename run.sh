@@ -5,17 +5,11 @@ KERNEL_PATH=$1
 ISO_ROOT=$PROJECT_ROOT/build/isodir
 LIMINE=$PROJECT_ROOT/limine/Limine/bin
 
-DISK_IMG="$PROJECT_ROOT/build/magical_disk.img"
-if [ ! -f "$DISK_IMG" ]; then
-    echo "Creating empty disk image for storage testing..."
-    dd if=/dev/zero of="$DISK_IMG" bs=1M count=64 status=none
-fi
-
 echo "Building ISO Image with kernel: $KERNEL_PATH"
 
 mkdir -p $ISO_ROOT/boot/limine
 
-cp -v $PROJECT_ROOT/ter-u32n.psf $ISO_ROOT/boot/limine/
+# cp -v $PROJECT_ROOT/ter-u32n.psf $ISO_ROOT/boot/limine/
 cp -v $PROJECT_ROOT/wallpaper.png $ISO_ROOT/boot/limine/
 cp -v $PROJECT_ROOT/limine.conf $ISO_ROOT/boot/limine/
 cp -v $KERNEL_PATH $ISO_ROOT/boot/kernel
@@ -43,7 +37,7 @@ qemu-system-x86_64                                     \
     -enable-kvm                                        \
     -debugcon stdio                                    \
     -cpu host                                          \
-    -display gtk,zoom-to-fit=off                       \
-    -device ahci,id=ahci0                              \
-    -drive id=disk0,file=$DISK_IMG,format=raw,if=none  \
-    -device ide-hd,drive=disk0,bus=ahci0.0
+    -display gtk,zoom-to-fit=off                       
+    # -device ahci,id=ahci0                              \
+    # -drive id=disk0,file=$DISK_IMG,format=raw,if=none  \
+    # -device ide-hd,drive=disk0,bus=ahci0.0
