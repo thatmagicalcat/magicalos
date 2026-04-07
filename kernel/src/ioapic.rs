@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::ptr;
 
 use bitflags::bitflags;
-use spin::Mutex;
+use crate::synch::Spinlock;
 
 use crate::{
     memory::{
@@ -28,7 +28,7 @@ const fn ioapic_redirection_table_offset(n: usize) -> usize {
     0x10 + 2 * n
 }
 
-pub static IOAPICS: Mutex<Vec<IoApic>> = Mutex::new(Vec::new());
+pub static IOAPICS: Spinlock<Vec<IoApic>> = Spinlock::new(Vec::new());
 pub fn register(ioapic: IoApic) {
     IOAPICS.lock().push(ioapic);
 }

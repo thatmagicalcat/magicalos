@@ -3,8 +3,9 @@ use core::{alloc::Layout, ffi, ptr};
 use alloc::alloc::{alloc, dealloc};
 
 use crate::limine_requests::*;
+use crate::synch::Spinlock;
 
-pub static TERMINAL: spin::Mutex<Option<Terminal>> = spin::Mutex::new(None);
+pub static TERMINAL: Spinlock<Option<Terminal>> = Spinlock::new(None);
 
 pub struct Terminal {
     ctx: *mut flanterm::flanterm_context,
@@ -30,7 +31,7 @@ impl Terminal {
         Self { ctx }
     }
 
-    pub fn inner(&mut self) -> *mut flanterm::flanterm_context {
+    pub const fn inner(&mut self) -> *mut flanterm::flanterm_context {
         self.ctx
     }
 }
