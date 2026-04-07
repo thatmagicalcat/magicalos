@@ -66,6 +66,17 @@ pub extern "C" fn general_protection_fault_handler(
     );
 }
 
+pub extern "C" fn invalid_tss_handler(stack_frame: &ExceptionStackFrame, error_code: u64) {
+    let is_external = error_code & 1 != 0;
+    let table = (error_code >> 1) & 0b11;
+    let index = (error_code >> 3) & 0x1FFF;
+
+    panic!(
+        "\nEXCEPTION: INVALID TSS\nError code: {error_code} (external: {is_external}, table: {table}, index: {index})\n{:#?}",
+        stack_frame
+    );
+}
+
 pub extern "C" fn spurious_interrupt_handler(stack_frame: &ExceptionStackFrame) {
     log::warn!(
         "\nEXCEPTION: SPURIOUS INTERRUPT at {:#X}\n{:#?}",

@@ -14,6 +14,7 @@ pub enum InterruptEntryType {
     PageFault = 14,
     Breakpoint = 3,
     DoubleFault = 8,
+    InvalidTSS = 10,
     GeneralProtectionFault = 13,
     ApicTimer = 32,
     Keyboard = 33,
@@ -43,6 +44,7 @@ lazy_static::lazy_static! {
         idt.set_handler(PageFault, exception_handler_with_error_code!(page_fault_handler));
         idt.set_handler(Breakpoint, exception_handler!(breakpoint_handler));
         idt.set_handler(SpuriousInterrupt, exception_handler!(spurious_interrupt_handler));
+        idt.set_handler(InvalidTSS, exception_handler_with_error_code!(invalid_tss_handler));
         idt.set_handler(Keyboard, exception_handler!(keyboard_handler));
         idt.set_handler(GeneralProtectionFault, exception_handler_with_error_code!(general_protection_fault_handler));
         idt.set_handler(ApicTimer, exception_handler!(acpi_timer_interrupt));

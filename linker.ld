@@ -61,6 +61,12 @@ SECTIONS
         *(COMMON)
     } :data
 
+    .userland : ALIGN(4K) {
+        USERLAND_START = .;
+        *(.userland .userland.*)
+    } :data
+    USERLAND_END = .;
+
     /* Discard .note.* and .eh_frame* since they may cause issues on some hosts. */
     /DISCARD/ : {
         *(.eh_frame*)

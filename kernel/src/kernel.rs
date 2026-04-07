@@ -1,9 +1,17 @@
-//! Nothing interesting here, just the main kernel initialization code and panic handler. The real
-//! fun starts in the modules :)
-//! This file exists because I want to keep main.rs clean
+use core::arch::asm;
 
 use crate::limine_requests::*;
+use crate::memory::FrameAllocator;
+use crate::memory::paging::{ActivePageTable, EntryFlags, VirtualAddress};
 use crate::*;
+
+/// Arbitrarily chosen virtual address where the userland code will be mapped to
+pub static USERLAND_VIRT_ADDR: VirtualAddress = VirtualAddress(0x400000);
+
+unsafe extern "C" {
+    static USERLAND_START: [u8; 0];
+    static USERLAND_END: [u8; 0];
+}
 
 pub fn init() {
     init_logging();
@@ -181,7 +189,7 @@ pub fn init_logging() {
                 let line = record.line().unwrap_or(0);
 
                 dbg_println!(
-                    "{level_color}[{: <5}]{reset} {meta_color}[\x1b[3m{file:>10}:{line:<3}\x1b[23m] {reset}{level_color}{}{reset}",
+                    "{level_color}[{: <5}]{reset} @ <{meta_color}\x1b[3m{file}:{line}\x1b[23m> {reset}{level_color}{}{reset}",
                     record.level(),
                     record.args(),
                 );
@@ -194,4 +202,71 @@ pub fn init_logging() {
     static LOGGER: KernelLogger = KernelLogger;
     log::set_logger(&LOGGER).expect("Failed to set logger");
     log::set_max_level(log::LevelFilter::Trace);
+}
+
+pub unsafe fn jump_to_user_fn(entry_point: u64, stack_ptr: u64) -> ! {
+    let ds = 0x23u64; // GDT Index 4, Ring 3
+    let cs = 0x1bu64; // GDT Index 3, Ring 3
+
+    unsafe {
+        asm! {
+            "push {0}",
+            "push {1}",
+            "add qword ptr [rsp], 16",
+            "pushf",
+            "push {2}",
+            "push {3}",
+            "iretq",
+            in(reg) ds,
+            in(reg) stack_ptr,
+            in(reg) cs,
+            in(reg) entry_point as usize,
+            options(nostack)
+        }
+    }
+
+    loop {
+        unsafe { asm!("hlt") }
+    }
+}
+
+pub fn init_user_land<A: FrameAllocator>(allocator: &mut A) {
+    log::info!("Initializing userland...");
+
+    let userland_start = unsafe { USERLAND_START.as_ptr() as usize };
+    let userland_end = unsafe { USERLAND_END.as_ptr() as usize };
+    let userland_size = userland_end - userland_start;
+    let required_pages = userland_size.div_ceil(memory::PAGE_SIZE);
+    let userland_flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
+
+    log::info!("  * code size: {userland_size} bytes, requires {required_pages} page(s)");
+
+    let mut page_table = ActivePageTable::new();
+    let mapper = page_table.mapper_mut();
+
+    log::info!(
+        "  * mapping userland to virtual address {:#010x}...",
+        USERLAND_VIRT_ADDR.0
+    );
+
+    for frame_idx in 0..required_pages {
+        let page = VirtualAddress(USERLAND_VIRT_ADDR.0 + (frame_idx * memory::PAGE_SIZE) as u64);
+        mapper.map(page, userland_flags, allocator);
+    }
+
+    log::info!("  * copying userland code to allocated memory");
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            userland_start as *mut u8,
+            USERLAND_VIRT_ADDR.0 as _,
+            userland_size,
+        );
+    }
+}
+
+pub fn get_user_fn_address(original_fn: extern "C" fn()) -> VirtualAddress {
+    let addr = original_fn as usize;
+    let offset = addr - unsafe { USERLAND_START.as_ptr() as usize };
+
+    VirtualAddress(USERLAND_VIRT_ADDR.0 + offset as u64)
 }

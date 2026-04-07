@@ -86,6 +86,7 @@ impl<L: TableLevel> PageTable<L> {
     pub fn next_table_create<A: FrameAllocator>(
         &mut self,
         index: usize,
+        additional_flags: EntryFlags,
         allocator: &mut A,
     ) -> &mut PageTable<L::NextLevel> {
         if self.next_table_addr(index).is_none() {
@@ -95,7 +96,7 @@ impl<L: TableLevel> PageTable<L> {
             );
 
             let physical_frame = allocator.allocate_frame().expect("OOM");
-            self.entries[index].set(physical_frame, EntryFlags::PRESENT | EntryFlags::WRITABLE);
+            self.entries[index].set(physical_frame, additional_flags | EntryFlags::PRESENT | EntryFlags::WRITABLE);
             self.next_table_mut(index).unwrap().zero();
         }
 
