@@ -29,6 +29,7 @@ pub fn init() {
 
     let mut active_table = memory::paging::ActivePageTable::new();
     memory::heap::init(active_table.mapper_mut(), &mut allocator);
+    syscall::init();
 
     terminal::init();
 
