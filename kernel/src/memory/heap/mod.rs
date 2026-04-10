@@ -5,8 +5,9 @@ use core::{
 
 use spin::{Mutex, MutexGuard};
 
-use crate::{
-    memory::{Frame, FrameAllocator, PAGE_SIZE, paging::{EntryFlags, Mapper, VirtualAddress}},
+use crate::memory::{
+    Frame, FrameAllocator, PAGE_SIZE,
+    paging::{Mapper, PageTableEntryFlags, VirtualAddress},
 };
 
 mod linkedlist_alloc;
@@ -14,7 +15,7 @@ pub use linkedlist_alloc::LinkedListAllocator;
 
 // 100 MiB
 pub const HEAP_SIZE: usize = 100 * 1024 * 1024;
-pub const HEAP_START: usize = 0x40_00_00_00;
+pub const HEAP_START: usize = 0xFFFF_9000_0000_0000;
 
 #[global_allocator]
 pub static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
@@ -36,7 +37,11 @@ pub fn init<A: FrameAllocator>(mapper: &mut Mapper, allocator: &mut A) {
 
     for frame in heap_mem_start.0..heap_mem_end.0 {
         let page = VirtualAddress((frame * PAGE_SIZE) as _);
-        mapper.map(page, EntryFlags::PRESENT | EntryFlags::WRITABLE, allocator);
+        mapper.map(
+            page,
+            PageTableEntryFlags::PRESENT | PageTableEntryFlags::WRITABLE,
+            allocator,
+        );
     }
 
     log::info!("Initializing global allocator");

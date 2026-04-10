@@ -7,7 +7,7 @@ use spin::Once;
 use crate::{
     memory::{
         self, Frame, FrameAllocator,
-        paging::{EntryFlags, Mapper, VirtualAddress},
+        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
     },
     utils,
 };
@@ -36,14 +36,15 @@ impl Hpet {
             base_addr
         );
 
+        // TODO: Map HPET to higher half address
         let frame = Frame::from_addr(utils::align_down(base_addr, memory::PAGE_SIZE));
         mapper.map_to(
             VirtualAddress(base_addr as _),
             frame,
-            EntryFlags::PRESENT
-                | EntryFlags::WRITABLE
-                | EntryFlags::CACHE_DISABLE
-                | EntryFlags::WRITE_THROUGH,
+            PageTableEntryFlags::PRESENT
+                | PageTableEntryFlags::WRITABLE
+                | PageTableEntryFlags::CACHE_DISABLE
+                | PageTableEntryFlags::WRITE_THROUGH,
             allocator,
         );
 

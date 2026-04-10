@@ -37,10 +37,4 @@ impl<const N: usize> FrameAllocator for TinyAllocator<N> {
             .expect("TinyAllocator is full, cannot deallocate frame")
             .replace(frame);
     }
-
-    fn bounds(&self) -> (usize, usize) {
-        unimplemented!("TinyAllocator does not support bounds")
-    }
-
-
 }

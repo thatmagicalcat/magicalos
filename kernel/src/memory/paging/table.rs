@@ -1,14 +1,13 @@
 use core::{
-    arch::asm,
     marker::PhantomData,
-    ops::{Deref, DerefMut, Index, IndexMut},
+    ops::{Deref, DerefMut, Index, IndexMut, Range},
 };
 
 use crate::{
     limine_requests::HHDM_REQUEST,
     memory::{
-        Frame, FrameAllocator,
-        paging::{EntryFlags, Mapper, PHYSICAL_ADDRESS_MASK, VirtualAddress},
+        FrameAllocator,
+        paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
     },
     utils,
 };
@@ -22,10 +21,10 @@ pub trait TableLevel: Level {
     type NextLevel: Level;
 }
 
-pub enum L4 {}
-pub enum L3 {}
-pub enum L2 {}
-pub enum L1 {}
+pub struct L4;
+pub struct L3;
+pub struct L2;
+pub struct L1;
 
 impl Level for L4 {}
 impl Level for L3 {}
@@ -44,13 +43,14 @@ impl TableLevel for L2 {
     type NextLevel = L1;
 }
 
+/// The page table structure that is used by the CPU
 #[repr(align(4096))]
-pub struct PageTable<L: Level> {
+pub struct PhysicalPageTable<L: Level> {
     entries: [PageTableEntry; ENTRIES_PER_TABLE],
     _phantom: PhantomData<L>,
 }
 
-impl<L: Level> PageTable<L> {
+impl<L: Level> PhysicalPageTable<L> {
     pub fn zero(&mut self) {
         for entry in &mut self.entries {
             entry.set_unused();
@@ -58,11 +58,11 @@ impl<L: Level> PageTable<L> {
     }
 }
 
-impl<L: TableLevel> PageTable<L> {
+impl<L: TableLevel> PhysicalPageTable<L> {
     fn next_table_addr(&self, index: usize) -> Option<VirtualAddress> {
         let entry = self[index];
 
-        if entry.is_present() && !entry.flags().contains(EntryFlags::HUGE_PAGE) {
+        if entry.is_present() && !entry.flags().contains(PageTableEntryFlags::HUGE_PAGE) {
             return Some(
                 entry
                     .get_physical_address()
@@ -73,12 +73,12 @@ impl<L: TableLevel> PageTable<L> {
         None
     }
 
-    pub fn next_table(&self, index: usize) -> Option<&PageTable<L::NextLevel>> {
+    pub fn next_table(&self, index: usize) -> Option<&PhysicalPageTable<L::NextLevel>> {
         self.next_table_addr(index)
             .map(|addr| unsafe { addr.as_ref() })
     }
 
-    pub fn next_table_mut(&mut self, index: usize) -> Option<&mut PageTable<L::NextLevel>> {
+    pub fn next_table_mut(&mut self, index: usize) -> Option<&mut PhysicalPageTable<L::NextLevel>> {
         self.next_table_addr(index)
             .map(|addr| unsafe { addr.as_mut() })
     }
@@ -86,9 +86,9 @@ impl<L: TableLevel> PageTable<L> {
     pub fn next_table_create<A: FrameAllocator>(
         &mut self,
         index: usize,
-        additional_flags: EntryFlags,
+        additional_flags: PageTableEntryFlags,
         allocator: &mut A,
-    ) -> &mut PageTable<L::NextLevel> {
+    ) -> &mut PhysicalPageTable<L::NextLevel> {
         if self.next_table_addr(index).is_none() {
             assert!(
                 !self[index].is_huge(),
@@ -96,7 +96,11 @@ impl<L: TableLevel> PageTable<L> {
             );
 
             let physical_frame = allocator.allocate_frame().expect("OOM");
-            self.entries[index].set(physical_frame, additional_flags | EntryFlags::PRESENT | EntryFlags::WRITABLE);
+            self.entries[index].set(
+                physical_frame,
+                additional_flags | PageTableEntryFlags::PRESENT | PageTableEntryFlags::WRITABLE,
+            );
+
             self.next_table_mut(index).unwrap().zero();
         }
 
@@ -104,7 +108,7 @@ impl<L: TableLevel> PageTable<L> {
     }
 }
 
-impl<L: Level> Index<usize> for PageTable<L> {
+impl<L: Level> Index<usize> for PhysicalPageTable<L> {
     type Output = PageTableEntry;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -112,13 +116,28 @@ impl<L: Level> Index<usize> for PageTable<L> {
     }
 }
 
-impl<L: Level> IndexMut<usize> for PageTable<L> {
+impl<L: Level> Index<Range<usize>> for PhysicalPageTable<L> {
+    type Output = [PageTableEntry];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.entries[index]
+    }
+}
+
+impl<L: Level> IndexMut<usize> for PhysicalPageTable<L> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
     }
 }
 
-pub struct ActivePageTable {
+impl<L: Level> IndexMut<Range<usize>> for PhysicalPageTable<L> {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        &mut self.entries[index]
+    }
+}
+
+/// A page table wrapper that provides a safe API to manipulate the page tables.
+pub struct PageTable {
     mapper: Mapper,
 }
 
@@ -151,8 +170,8 @@ pub struct ActivePageTable {
 //     }
 // }
 
-impl ActivePageTable {
-    pub fn new() -> Self {
+impl PageTable {
+    pub fn active() -> Self {
         Self {
             mapper: Mapper::new(
                 utils::read_cr3()
@@ -160,6 +179,22 @@ impl ActivePageTable {
                     .as_mut_ptr(),
             ),
         }
+    }
+
+    pub const fn new(mapper: Mapper) -> Self {
+        Self { mapper }
+    }
+
+    /// Literally calls `Mapper::new` with the given virtual address
+    pub const fn from_phys_table_addr(addr: *mut PhysicalPageTable<L4>) -> Self {
+        Self {
+            mapper: Mapper::new(addr),
+        }
+    }
+
+    pub fn get_physical_address(&self) -> PhysicalAddress {
+        // physical addr = virtual addr - hhdm_offset
+        PhysicalAddress(self.mapper.p4 as usize as u64 - unsafe { (*HHDM_REQUEST.response).offset })
     }
 
     // The trick:
@@ -231,7 +266,7 @@ impl ActivePageTable {
     }
 }
 
-impl Deref for ActivePageTable {
+impl Deref for PageTable {
     type Target = Mapper;
 
     fn deref(&self) -> &Self::Target {
@@ -239,7 +274,7 @@ impl Deref for ActivePageTable {
     }
 }
 
-impl DerefMut for ActivePageTable {
+impl DerefMut for PageTable {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mapper_mut()
     }

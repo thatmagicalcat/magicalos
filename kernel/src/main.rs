@@ -1,13 +1,13 @@
 #![no_std]
 #![no_main]
 #![warn(clippy::missing_const_for_fn)]
+#![feature(linked_list_cursors)]
 
-use core::alloc::Layout;
-
-use alloc::alloc::alloc;
+use core::time::Duration;
 
 use crate::{
-    scheduler::{NORMAL_PRIORITY, REALTIME_PRIORITY},
+    scheduler::NORMAL_PRIORITY,
+    syscall::Syscall,
     terminal::{Color, Reset},
 };
 
@@ -22,8 +22,11 @@ mod kernel;
 mod limine_requests;
 mod macros;
 mod memory;
+mod msr;
+mod processor;
 mod scheduler;
 mod synch;
+mod syscall;
 mod task;
 mod terminal;
 mod utils;
@@ -42,16 +45,9 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
 pub extern "C" fn kmain() -> ! {
     kernel::init();
 
-    // let fn_addr = kernel::get_user_fn_address(user_task).0;
-    // let fn_ptr: extern "C" fn() =
-    //     unsafe { core::mem::transmute::<usize, extern "C" fn()>(fn_addr as usize) };
-    //
-    // log::info!("calling");
-    // fn_ptr();
-    //
-    scheduler::spawn(create_user_task, NORMAL_PRIORITY).unwrap();
+    scheduler::spawn(create_user_cat, NORMAL_PRIORITY).unwrap();
+    scheduler::spawn(f, NORMAL_PRIORITY).unwrap();
 
-    // let the scheduler take over
     scheduler::reschedule();
 
     log::error!("Scheduler empty, main kernel thread entering idle loop");
@@ -61,38 +57,28 @@ pub extern "C" fn kmain() -> ! {
     }
 }
 
-// allocates a stack and jumps to userland
-#[allow(static_mut_refs)] // shut the fuck up
-extern "C" fn create_user_task() {
-    const STACK_SIZE: usize = 4096;
-    static mut STACK: Option<usize> = None;
-
-    if unsafe { STACK.is_none() } {
-        log::debug!("Allocating stack for user task");
-
-        let layout = Layout::from_size_align(   STACK_SIZE, 16).unwrap();
-        let stack_mem = unsafe { alloc(layout) };
-        unsafe { STACK = Some(stack_mem as usize + STACK_SIZE) };
-    }
-
-    let stack_ptr = unsafe { STACK.unwrap() };
-    let entry_point = kernel::get_user_fn_address(user_task);
-
-    unsafe { kernel::jump_to_user_fn(*entry_point, stack_ptr as _) };
-}
-
-#[unsafe(link_section = ".userland")]
-extern "C" fn user_task() {
-    // will cause a #PF
-    let x = 10;
-    core::hint::black_box(&x);
-    loop {
-        core::hint::spin_loop();
+extern "C" fn f() {
+    for i in 0..10 {
+        println!("{i}");
+        hpet::HPET
+            .get()
+            .unwrap()
+            .busy_wait(Duration::from_millis(50));
     }
 }
 
-#[used]
-static F: extern "C" fn() = user_task;
+extern "C" fn create_user_cat() {
+    utils::write_cr3(*memory::paging::user::create_user_page_table() as _);
+    memory::paging::user::map_user_entry(user_cat);
+    unsafe { processor::jump_to_user_fn(user_cat) }
+}
+
+extern "C" fn user_cat() {
+    let msg = *b"Hello, World\r\n";
+
+    syscall!(Syscall::Write, msg.as_ptr(), msg.len());
+    syscall!(Syscall::Exit);
+}
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {

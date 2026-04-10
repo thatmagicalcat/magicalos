@@ -9,7 +9,7 @@ use crate::synch::Spinlock;
 use crate::{
     memory::{
         self, Frame, FrameAllocator,
-        paging::{EntryFlags, Mapper, VirtualAddress},
+        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
     },
     utils,
 };
@@ -134,10 +134,10 @@ impl IoApic {
         mapper.map_to(
             VirtualAddress(physical_addr as _),
             frame,
-            EntryFlags::PRESENT
-                | EntryFlags::WRITABLE
-                | EntryFlags::CACHE_DISABLE
-                | EntryFlags::WRITE_THROUGH,
+            PageTableEntryFlags::PRESENT
+                | PageTableEntryFlags::WRITABLE
+                | PageTableEntryFlags::CACHE_DISABLE
+                | PageTableEntryFlags::WRITE_THROUGH,
             allocator,
         );
 

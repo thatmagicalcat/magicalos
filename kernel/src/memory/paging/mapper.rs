@@ -3,8 +3,8 @@ use core::arch::asm;
 
 use super::{
     PhysicalAddress, VirtualAddress,
-    entry::EntryFlags,
-    table::{ENTRIES_PER_TABLE, L4, PageTable},
+    entry::PageTableEntryFlags,
+    table::{ENTRIES_PER_TABLE, L4, PhysicalPageTable},
 };
 
 // use crate::memory::{Frame, FrameAllocator};
@@ -13,19 +13,19 @@ use super::{
 //
 #[derive(Clone)]
 pub struct Mapper {
-    p4: *mut PageTable<L4>,
+    pub(crate) p4: *mut PhysicalPageTable<L4>,
 }
 
 impl Mapper {
-    pub const fn new(p4: *mut PageTable<L4>) -> Self {
+    pub const fn new(p4: *mut PhysicalPageTable<L4>) -> Self {
         Self { p4 }
     }
 
-    pub const fn as_ref(&self) -> &'static PageTable<L4> {
+    pub const fn as_ref(&self) -> &'static PhysicalPageTable<L4> {
         unsafe { &*self.p4 }
     }
 
-    pub const fn as_mut(&mut self) -> &mut PageTable<L4> {
+    pub const fn as_mut(&mut self) -> &mut PhysicalPageTable<L4> {
         unsafe { &mut *self.p4 }
     }
 
@@ -37,7 +37,7 @@ impl Mapper {
 
                 // 1 GiB page?!?! what the fuck?
                 if let Some(start_frame) = p3_entry.get_pointed_frame()
-                    && p3_entry.flags().contains(EntryFlags::HUGE_PAGE)
+                    && p3_entry.flags().contains(PageTableEntryFlags::HUGE_PAGE)
                 {
                     // address must be 1 GiB aligned
                     assert!(start_frame.start_address() % (1 << 30) == 0);
@@ -51,7 +51,7 @@ impl Mapper {
 
                     // 2 MiB page
                     if let Some(start_frame) = p2_entry.get_pointed_frame()
-                        && p2_entry.flags().contains(EntryFlags::HUGE_PAGE)
+                        && p2_entry.flags().contains(PageTableEntryFlags::HUGE_PAGE)
                     {
                         // address must be 2 MiB aligned
                         assert!(start_frame.start_address() % (1 << 21) == 0);
@@ -74,7 +74,7 @@ impl Mapper {
         &mut self,
         page: VirtualAddress,
         frame: Frame,
-        flags: EntryFlags,
+        flags: PageTableEntryFlags,
         allocator: &mut A,
     ) {
         if self.translate(page).is_none() {
@@ -86,7 +86,7 @@ impl Mapper {
         &mut self,
         page: VirtualAddress,
         frame: Frame,
-        flags: EntryFlags,
+        flags: PageTableEntryFlags,
         allocator: &mut A,
     ) {
         // log::trace!("map(): {:#010x} -> {:#010x}, flags = {flags:?}", page.0, frame.start_address());
@@ -97,11 +97,11 @@ impl Mapper {
         let p1 = p2.next_table_create(page.p2_idx() as _, flags, allocator);
 
         assert!(p1[page.p1_idx()].is_unused());
-        p1[page.p1_idx()].set(frame, flags | EntryFlags::PRESENT);
+        p1[page.p1_idx()].set(frame, flags | PageTableEntryFlags::PRESENT);
     }
 
     /// Identical to `map_to`, but allocates a frame for you.
-    pub fn map<A>(&mut self, page: VirtualAddress, flags: EntryFlags, allocator: &mut A)
+    pub fn map<A>(&mut self, page: VirtualAddress, flags: PageTableEntryFlags, allocator: &mut A)
     where
         A: FrameAllocator,
     {
