@@ -34,6 +34,8 @@ macro_rules! dbg {
         log::debug!("{} = {result:?}", stringify!($e));
         result
     }};
+
+    [ $($e:expr),* $(,)? ] => { $($crate::dbg!($e);)* }
 }
 
 #[macro_export]
