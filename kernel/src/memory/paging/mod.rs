@@ -1,6 +1,7 @@
 mod entry;
 mod mapper;
 mod table;
+pub mod user;
 
 pub use entry::*;
 pub use mapper::*;
@@ -85,25 +86,25 @@ impl VirtualAddress {
 }
 
 impl PhysicalAddress {
-    pub const fn new(
-        p4_idx: usize,
-        p3_idx: usize,
-        p2_idx: usize,
-        p1_idx: usize,
-        offset: usize,
-    ) -> Self {
-        let mut addr = ((p4_idx as u64 & 0o777) << 39)
-            | ((p3_idx as u64 & 0o777) << 30)
-            | ((p2_idx as u64 & 0o777) << 21)
-            | ((p1_idx as u64 & 0o777) << 12)
-            | (offset as u64 & 0xfff);
-
-        if addr & 1 << 47 != 0 {
-            addr |= 0xffff_0000_0000_0000;
-        }
-
-        Self(addr)
-    }
+    // pub const fn new(
+    //     p4_idx: usize,
+    //     p3_idx: usize,
+    //     p2_idx: usize,
+    //     p1_idx: usize,
+    //     offset: usize,
+    // ) -> Self {
+    //     let mut addr = ((p4_idx as u64 & 0o777) << 39)
+    //         | ((p3_idx as u64 & 0o777) << 30)
+    //         | ((p2_idx as u64 & 0o777) << 21)
+    //         | ((p1_idx as u64 & 0o777) << 12)
+    //         | (offset as u64 & 0xfff);
+    //
+    //     if addr & 1 << 47 != 0 {
+    //         addr |= 0xffff_0000_0000_0000;
+    //     }
+    //
+    //     Self(addr)
+    // }
 
     pub fn to_virtual(&self, hhdm_offest: u64) -> VirtualAddress {
         (self.0 + hhdm_offest).into()
