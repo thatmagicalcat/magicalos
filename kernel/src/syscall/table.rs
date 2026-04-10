@@ -16,3 +16,17 @@ pub(crate) struct SyscallTable {
     handle: [*const usize; Syscall::NumSyscalls as usize],
 }
 
+impl SyscallTable {
+    pub const fn new() -> Self {
+        Self {
+            handle: [sys_exit as _, sys_write as _],
+        }
+    }
+}
+
+/// SAFETY: trust me bro
+unsafe impl Send for SyscallTable {}
+unsafe impl Sync for SyscallTable {}
+
+#[unsafe(no_mangle)]
+pub(crate) static SYSCALL_TABLE: SyscallTable = SyscallTable::new();
