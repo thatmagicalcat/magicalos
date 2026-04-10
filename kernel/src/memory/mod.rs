@@ -11,7 +11,6 @@ pub const PAGE_SIZE: usize = 1024 * 4;
 pub trait FrameAllocator {
     fn allocate_frame(&mut self) -> Option<Frame>;
     fn deallocate_frame(&mut self, frame: Frame);
-    fn bounds(&self) -> (usize, usize);
 }
 
 #[repr(transparent)]

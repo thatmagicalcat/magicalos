@@ -177,10 +177,4 @@ impl FrameAllocator for BitmapFrameAllocator {
 
         self.mark_frame_free(frame_index);
     }
-
-    fn bounds(&self) -> (usize, usize) {
-        let start = self.bitmap_slice.as_ptr() as usize;
-        let end = start + self.bitmap_slice.len();
-        (start, end)
-    }
 }
