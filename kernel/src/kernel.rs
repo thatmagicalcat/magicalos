@@ -1,20 +1,37 @@
-use core::arch::asm;
-
 use crate::limine_requests::*;
 use crate::memory::FrameAllocator;
-use crate::memory::paging::{ActivePageTable, EntryFlags, VirtualAddress};
+use crate::memory::paging::{Mapper, PageTable, VirtualAddress};
 use crate::*;
 
-/// Arbitrarily chosen virtual address where the userland code will be mapped to
-pub static USERLAND_VIRT_ADDR: VirtualAddress = VirtualAddress(0x400000);
+/// The entry point of user tasks
+pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x20000000000_u64);
 
-unsafe extern "C" {
-    static USERLAND_START: [u8; 0];
-    static USERLAND_END: [u8; 0];
+/// The kernel's page table. This is used for mapping the kernel's virtual address space to
+/// physical memory.
+pub static mut KERNEL_PAGE_TABLE: Option<PageTable> = None;
+
+/// SAFETY: This function should only be called after the kernel page table has been initialized in
+/// `init()`
+#[allow(static_mut_refs)]
+pub fn get_kernel_page_table() -> &'static mut PageTable {
+    unsafe {
+        KERNEL_PAGE_TABLE
+            .as_mut()
+            .expect("Kernel page table not initialized")
+    }
 }
 
 pub fn init() {
     init_logging();
+    log::info!("Hello, World!");
+
+    processor::init();
+
+    unsafe {
+        // the currently active page table is the kernel's page table
+        KERNEL_PAGE_TABLE = Some(PageTable::active());
+    }
+
     gdt::init();
     interrupts::init();
 
@@ -24,17 +41,22 @@ pub fn init() {
     };
 
     log_memmap(memmap);
-    let mut allocator = memory::BitmapFrameAllocator::new(memmap);
-    init_user_land(&mut allocator);
+    memory::init_global_frame_allocator(memmap);
 
-    let mut active_table = memory::paging::ActivePageTable::new();
-    memory::heap::init(active_table.mapper_mut(), &mut allocator);
+    // locking here because modules like heap are gonna allocate a ton of pages
+    // so locking and unlocking on every `allocate_frame` might be a tiny bit slow :)
+    let mut allocator = memory::lock_global_frame_allocator();
+
+    let kernel_page_table = get_kernel_page_table();
+    memory::heap::init(kernel_page_table.mapper_mut(), &mut *allocator);
+    memory::init_vmm();
+
     syscall::init();
 
     terminal::init();
 
     let acpi_tables = parse_acpi_tables();
-    register_ioapics(&acpi_tables, &mut allocator, &mut active_table);
+    register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);
 
     let hpet_info =
         acpi::HpetInfo::new(&acpi_tables).expect("Failed to find HPET info in ACPI tables");
@@ -42,12 +64,15 @@ pub fn init() {
 
     let base_addr = hpet_info.base_address;
     let hpet = hpet::HPET
-        .call_once(|| hpet::Hpet::new(base_addr, active_table.mapper_mut(), &mut allocator));
+        .call_once(|| hpet::Hpet::new(base_addr, kernel_page_table.mapper_mut(), &mut *allocator));
 
     log::info!("HPET frequency: {} MHz", 1_000_000_000 / hpet.time_period);
 
-    io::apic::init(active_table.mapper_mut(), &mut allocator);
+    io::apic::init(kernel_page_table.mapper_mut(), &mut *allocator);
     io::apic::calibrate_lapic_timer(hpet);
+
+    // IMPORTANT!
+    drop(allocator);
 
     // enable keyboard interrupt
     // TODO: find the correct GSI for the keyboard instead of hardcoding it to 1
@@ -119,10 +144,10 @@ fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
 //     }
 // }
 
-fn register_ioapics(
+fn register_ioapics<A: FrameAllocator>(
     acpi_tables: &acpi::AcpiTables<io::acpi::KernelAcpiHandler>,
-    allocator: &mut memory::BitmapFrameAllocator,
-    active_table: &mut memory::paging::ActivePageTable,
+    allocator: &mut A,
+    mapper: &mut Mapper,
 ) {
     let Ok((acpi::platform::InterruptModel::Apic(apic_info), _processor_info)) =
         acpi::platform::InterruptModel::new(acpi_tables)
@@ -139,7 +164,7 @@ fn register_ioapics(
             ioapic::IoApic::new(
                 apic_info.address as usize,
                 apic_info.global_system_interrupt_base as usize,
-                active_table.mapper_mut(),
+                mapper,
                 apic_info.id,
                 allocator,
             )
@@ -205,69 +230,43 @@ pub fn init_logging() {
     log::set_max_level(log::LevelFilter::Trace);
 }
 
-pub unsafe fn jump_to_user_fn(entry_point: u64, stack_ptr: u64) -> ! {
-    let ds = 0x23u64; // GDT Index 4, Ring 3
-    let cs = 0x1bu64; // GDT Index 3, Ring 3
-
-    unsafe {
-        asm! {
-            "push {0}",
-            "push {1}",
-            "add qword ptr [rsp], 16",
-            "pushf",
-            "push {2}",
-            "push {3}",
-            "iretq",
-            in(reg) ds,
-            in(reg) stack_ptr,
-            in(reg) cs,
-            in(reg) entry_point as usize,
-            options(nostack)
-        }
-    }
-
-    loop {
-        unsafe { asm!("hlt") }
-    }
-}
-
-pub fn init_user_land<A: FrameAllocator>(allocator: &mut A) {
-    log::info!("Initializing userland...");
-
-    let userland_start = unsafe { USERLAND_START.as_ptr() as usize };
-    let userland_end = unsafe { USERLAND_END.as_ptr() as usize };
-    let userland_size = userland_end - userland_start;
-    let required_pages = userland_size.div_ceil(memory::PAGE_SIZE);
-    let userland_flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
-
-    log::info!("  * code size: {userland_size} bytes, requires {required_pages} page(s)");
-
-    let mut page_table = ActivePageTable::new();
-    let mapper = page_table.mapper_mut();
-
-    log::info!(
-        "  * mapping userland to virtual address {:#010x}...",
-        USERLAND_VIRT_ADDR.0
-    );
-
-    for frame_idx in 0..required_pages {
-        let page = VirtualAddress(USERLAND_VIRT_ADDR.0 + (frame_idx * memory::PAGE_SIZE) as u64);
-        mapper.map(page, userland_flags, allocator);
-    }
-
-    log::info!("  * copying userland code to allocated memory");
-    unsafe {
-        core::ptr::copy_nonoverlapping(
-            userland_start as *mut u8,
-            USERLAND_VIRT_ADDR.0 as _,
-            userland_size,
-        );
-    }
-}
-
-pub fn get_user_fn_address(original_fn: extern "C" fn()) -> VirtualAddress {
-    let addr = original_fn as usize;
-    let offset = addr - unsafe { USERLAND_START.as_ptr() as usize };
-
-    VirtualAddress(USERLAND_VIRT_ADDR.0 + offset as u64)
-}
+// pub fn init_user_land<A: FrameAllocator>(allocator: &mut A) {
+//     log::info!("Initializing userland...");
+//
+//     let userland_start = unsafe { USERLAND_START.as_ptr() as usize };
+//     let userland_end = unsafe { USERLAND_END.as_ptr() as usize };
+//     let userland_size = userland_end - userland_start;
+//     let required_pages = userland_size.div_ceil(memory::PAGE_SIZE);
+//     let userland_flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
+//
+//     log::info!("  * code size: {userland_size} bytes, requires {required_pages} page(s)");
+//
+//     let mut page_table = PhysicalPageTable::new();
+//     let mapper = page_table.mapper_mut();
+//
+//     log::info!(
+//         "  * mapping userland to virtual address {:#010x}...",
+//         USERLAND_VIRT_ADDR.0
+//     );
+//
+//     for frame_idx in 0..required_pages {
+//         let page = VirtualAddress(USERLAND_VIRT_ADDR.0 + (frame_idx * memory::PAGE_SIZE) as u64);
+//         mapper.map(page, userland_flags, allocator);
+//     }
+//
+//     log::info!("  * copying userland code to allocated memory");
+//     unsafe {
+//         core::ptr::copy_nonoverlapping(
+//             userland_start as *mut u8,
+//             USERLAND_VIRT_ADDR.0 as _,
+//             userland_size,
+//         );
+//     }
+// }
+//
+// pub fn get_user_fn_address(original_fn: extern "C" fn()) -> VirtualAddress {
+//     let addr = original_fn as usize;
+//     let offset = addr - unsafe { USERLAND_START.as_ptr() as usize };
+//
+//     VirtualAddress(USERLAND_VIRT_ADDR.0 + offset as u64)
+// }
