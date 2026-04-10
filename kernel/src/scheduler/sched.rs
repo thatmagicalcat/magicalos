@@ -10,7 +10,7 @@ use alloc::{
 
 use crate::{
     interrupts,
-    memory::paging::VirtualAddress,
+    memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::task::{NUM_PRIORITIES, TaskStatus},
 };
 
@@ -152,14 +152,6 @@ impl Scheduler {
                 self.finished_tasks.push_back(current_id);
             }
 
-            // log::trace!(
-            //     "Switch task from id {:?} to id {:?} (stack {:#p} -> {:#x})",
-            //     current_id,
-            //     next_id,
-            //     current_sp,
-            //     next_sp
-            // );
-
             self.current_task = next_task;
             unsafe { switch(current_sp, next_sp) };
         }
@@ -196,6 +188,14 @@ impl Scheduler {
 
     pub fn get_current_task_id(&self) -> TaskId {
         interrupts::without_interrupts(|| self.current_task.borrow().id)
+    }
+
+    pub fn set_root_page_table(&self, addr: PhysicalAddress) {
+        self.current_task.borrow_mut().root_page_table = addr;
+    }
+
+    pub fn get_root_page_table(&self) -> PhysicalAddress {
+        self.current_task.borrow().root_page_table
     }
 }
 
@@ -249,15 +249,33 @@ macro_rules! restore_context {
 }
 
 #[unsafe(naked)]
-pub(crate) unsafe extern "C" fn switch(old: *mut usize, new: usize) {
+pub(crate) unsafe extern "C" fn switch(_old_stack: *mut usize, _new_stack: usize) {
+    // rdi = old_stack => the address to store the old rsp
+    // rsi = new_stack => stack pointer of the new task
+
     core::arch::naked_asm! {
         save_context!(),
-        "mov [rdi], rsp", // *old = new
-        "mov rsp, rsi",   // rsp = new
+        "rdfsbase rax",
+        "rdgsbase rdx",
+        "push rax",
+        "push rdx",
+        // Store the old `rsp` behind `old_stack`
+        "mov [rdi], rsp",
+        // Set `rsp` to `new_stack`
+        "mov rsp, rsi",
+        // Set task switched flag
+        "mov rax, cr0",
+        "or rax, 8",
+        "mov cr0, rax",
+        // set stack pointer in TSS
         "call {set_stack}",
+        "pop r15",
+        "wrgsbase r15",
+        "pop r15",
+        "wrfsbase r15",
         restore_context!(),
         set_stack = sym set_current_kernel_stack,
-    }
+    };
 }
 
 fn set_current_kernel_stack() {

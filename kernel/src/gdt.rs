@@ -16,8 +16,8 @@ fn gdt() -> &'static [GdtEntry; GDT_SIZE] {
             GdtEntry::new(),
             GdtEntry::kernel_code_seg(),
             GdtEntry::kernel_data_seg(),
-            GdtEntry::ring3_code_seg(),
             GdtEntry::ring3_data_seg(),
+            GdtEntry::ring3_code_seg(),
             tss_low,
             tss_high,
         ]

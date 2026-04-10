@@ -1,8 +1,19 @@
-use core::{cell::RefCell, mem};
+use core::{cell::RefCell, mem, ops::Range};
 
 use alloc::{boxed::Box, collections::VecDeque, rc::Rc};
 
-use crate::{memory::paging::VirtualAddress, scheduler};
+use crate::{
+    kernel,
+    limine_requests::HHDM_REQUEST,
+    memory::{
+        self, Frame,
+        paging::{
+            self, L1, L2, L3, L4, Level, PageTable, PhysicalAddress, PhysicalPageTable, TableLevel,
+            VirtualAddress,
+        },
+    },
+    scheduler,
+};
 
 pub const STACK_SIZE: usize = 0x3000;
 pub const INTERRUPT_STACK_SIZE: usize = 0x3000;
@@ -14,6 +25,8 @@ pub const LOW_PRIORITY: TaskPriority = TaskPriority(0);
 
 #[repr(C, packed)]
 struct State {
+    gs: u64,
+    fs: u64,
     r15: u64,
     r14: u64,
     r13: u64,
@@ -148,6 +161,9 @@ pub(crate) struct Task {
     pub status: TaskStatus,
     pub last_stack_ptr: usize,
     pub stack: Box<dyn Stack>,
+
+    /// The physical address of PML4 page table for this task
+    pub root_page_table: PhysicalAddress,
 }
 
 impl Task {
@@ -158,6 +174,7 @@ impl Task {
             priority,
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
+            root_page_table: kernel::get_kernel_page_table().get_physical_address(),
         }
     }
 
@@ -168,25 +185,32 @@ impl Task {
             priority: LOW_PRIORITY,
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
+            root_page_table: kernel::get_kernel_page_table().get_physical_address(),
         }
     }
 
     pub fn create_stack_frame(&mut self, entry_point: extern "C" fn()) {
         let mut sp: *mut u64 = self.stack.top().as_mut_ptr();
         unsafe {
-            sp = sp.offset(-2);
-
-            // this procedure cleans the task after exit
+            // stack poisoning
+            core::ptr::write_bytes(self.stack.bottom().as_mut_ptr::<u8>(), 0xCD, STACK_SIZE);
+            sp = sp.offset(-1);
             *sp = leave_task as *const () as _;
 
-            // reserve space for state
             let sp_before = sp;
+            // reserve space for state
             sp = (sp as usize - mem::size_of::<State>()) as _;
 
-            let state: *mut State = sp as _;
-            (*state).rip = sp_before as _;
-            (*state).rflags = 0x1202u64;
-            (*state).rip = entry_point as *const () as _;
+            let state: *mut State = sp as *mut State;
+
+            // zero out the state memory
+            core::ptr::write_bytes(state, 0x0, 1);
+
+            (*state).rsp = sp_before as _;
+            (*state).rbp = (*state).rsp + mem::size_of::<u64>() as u64;
+            (*state).gs = self.stack.top().0;
+            (*state).rip = (entry_point as *const ()) as _;
+            (*state).rflags = 0x1202;
 
             self.last_stack_ptr = sp as usize;
         }
@@ -228,4 +252,62 @@ impl Stack for TaskStack {
 
 pub fn leave_task() {
     scheduler::exit();
+}
+
+trait DroppableRegion {
+    const DROPPABLE_RANGE: Range<usize> = 0..512;
+}
+
+impl DroppableRegion for L3 {}
+impl DroppableRegion for L2 {}
+impl DroppableRegion for L1 {}
+impl DroppableRegion for L4 {
+    /// entires: 256..512 refers to the kernel space
+    const DROPPABLE_RANGE: Range<usize> = 0..256;
+}
+
+trait RecursiveDrop<L: Level> {
+    fn recursive_drop(ptr: *mut PhysicalPageTable<L>);
+}
+
+impl<L> RecursiveDrop<L> for L
+where
+    L: TableLevel + Level + DroppableRegion,
+    L::NextLevel: RecursiveDrop<L::NextLevel>,
+{
+    fn recursive_drop(ptr: *mut PhysicalPageTable<L>) {
+        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
+        let physical_frame = Frame::from_addr((ptr as usize - hhdm_offset) as _);
+
+        for entry in unsafe { &(&*ptr)[L::DROPPABLE_RANGE] } {
+            if entry.is_present() {
+                let next_table_ptr: *mut PhysicalPageTable<L::NextLevel> =
+                    (entry.get_physical_address().0 as usize + hhdm_offset) as _;
+                <L as TableLevel>::NextLevel::recursive_drop(next_table_ptr);
+            }
+        }
+
+        memory::deallocate_frame(physical_frame);
+    }
+}
+
+impl RecursiveDrop<L1> for L1 {
+    fn recursive_drop(ptr: *mut PhysicalPageTable<L1>) {
+        memory::deallocate_frame(Frame::from_addr(
+            (ptr as u64 - unsafe { (*HHDM_REQUEST.response).offset }) as _,
+        ));
+    }
+}
+
+impl Drop for Task {
+    fn drop(&mut self) {
+        if self.root_page_table != kernel::get_kernel_page_table().get_physical_address() {
+            log::debug!("Deallocating page table of task id: {}", self.id);
+
+            let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
+            let ptr: *mut PhysicalPageTable<L4> =
+                (self.root_page_table.0 as usize + hhdm_offset) as _;
+            L4::recursive_drop(ptr);
+        }
+    }
 }

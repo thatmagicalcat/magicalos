@@ -4,7 +4,7 @@ use alloc::rc::Rc;
 use core::cell::{RefCell, UnsafeCell};
 
 use crate::{
-    memory::paging::VirtualAddress,
+    memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::{
         sched::Scheduler,
         task::{Task, TaskId, TaskPriority},
@@ -52,4 +52,12 @@ pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
 
 pub fn get_current_task_id() -> TaskId {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_current_task_id() }
+}
+
+pub(crate) fn set_root_page_table(physical_address: PhysicalAddress) {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).set_root_page_table(physical_address) }
+}
+
+pub(crate) fn get_root_page_table() -> PhysicalAddress {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_root_page_table() }
 }
