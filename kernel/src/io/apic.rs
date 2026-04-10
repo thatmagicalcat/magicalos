@@ -6,8 +6,11 @@ use super::port::Port;
 use crate::{
     hpet::Hpet,
     interrupts,
-    memory::{Frame, FrameAllocator, paging::{EntryFlags, Mapper, VirtualAddress}},
-    utils::rdmsr,
+    memory::{
+        Frame, FrameAllocator,
+        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
+    },
+    msr::*,
 };
 
 static LAPIC_TIMER_FREQ: AtomicU64 = AtomicU64::new(0);
@@ -19,10 +22,9 @@ pub const PIC1_DATA: u16 = PIC1 + 1;
 pub const PIC2_COMMAND: u16 = PIC2;
 pub const PIC2_DATA: u16 = PIC2 + 1;
 
-pub const IA32_APIC_BASE_MSR: u32 = 0x1B;
-
 /// Assuming LAPIC is identity mapped
 pub const LAPIC_PHYSICAL_ADDRESS_DEFAULT: usize = 0xFEE0_0000;
+pub const LAPIC_VIRTUAL_ADDRESS: usize = 0xFFFF_A000_0000_0000;
 pub const LAPIC_ENABLE_BIT: u64 = 1 << 11;
 pub const LAPIC_EOI_REG_OFFSET: usize = 0xB0;
 pub const LAPIC_SIVR_REG_OFFSET: usize = 0xF0;
@@ -72,7 +74,7 @@ impl DivideConfig {
 }
 
 const fn register_ptr(offset: usize) -> *mut u32 {
-    (LAPIC_PHYSICAL_ADDRESS_DEFAULT + offset) as *mut _
+    (LAPIC_VIRTUAL_ADDRESS + offset) as *mut _
 }
 
 fn write(offset: usize, value: u32) {
@@ -92,13 +94,12 @@ pub fn send_eoi() {
 }
 
 pub fn init(mapper: &mut Mapper, allocator: &mut impl FrameAllocator) {
-    let lapic_addr = LAPIC_PHYSICAL_ADDRESS_DEFAULT;
-    let lapic_frame = Frame::from_addr(lapic_addr);
-    let page = VirtualAddress(lapic_addr as _);
-    let flags = EntryFlags::WRITABLE
-        | EntryFlags::WRITE_THROUGH
-        | EntryFlags::CACHE_DISABLE
-        | EntryFlags::PRESENT;
+    let lapic_frame = Frame::from_addr(LAPIC_PHYSICAL_ADDRESS_DEFAULT);
+    let page = VirtualAddress(LAPIC_VIRTUAL_ADDRESS as _);
+    let flags = PageTableEntryFlags::WRITABLE
+        | PageTableEntryFlags::WRITE_THROUGH
+        | PageTableEntryFlags::CACHE_DISABLE
+        | PageTableEntryFlags::PRESENT;
 
     mapper.map_to(page, lapic_frame, flags, allocator);
 
@@ -164,16 +165,16 @@ fn pic_disable() {
 
 fn lapic_enable() {
     // if the APIC is already enabled, do nothing
-    let mut msr_value = unsafe { rdmsr(IA32_APIC_BASE_MSR) };
+    let mut msr_value = unsafe { rdmsr(IA32_APIC_BASE) };
 
     // if not enabled, try to enable the APIC
     if msr_value & LAPIC_ENABLE_BIT == 0 {
         // try to enable the APIC by setting the enable bit in the MSR
         msr_value |= LAPIC_ENABLE_BIT;
-        unsafe { crate::utils::wrmsr(IA32_APIC_BASE_MSR, msr_value) };
+        unsafe { wrmsr(IA32_APIC_BASE, msr_value) };
 
         // verify that the APIC is now enabled
-        let new_msr_value = unsafe { rdmsr(IA32_APIC_BASE_MSR) };
+        let new_msr_value = unsafe { rdmsr(IA32_APIC_BASE) };
         if new_msr_value & LAPIC_ENABLE_BIT == 0 {
             panic!("Failed to enable the Local APIC");
         }
