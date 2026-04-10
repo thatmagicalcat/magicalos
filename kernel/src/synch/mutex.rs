@@ -19,6 +19,7 @@ pub struct MutexGuard<'a, T: ?Sized + 'a> {
     data: &'a mut T,
 }
 
+/// SAFETY: trust me bro
 unsafe impl<T: ?Sized + Send> Sync for Mutex<T> {}
 unsafe impl<T: ?Sized + Send> Send for Mutex<T> {}
 

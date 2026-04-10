@@ -11,6 +11,7 @@ pub struct Terminal {
     ctx: *mut flanterm::flanterm_context,
 }
 
+/// SAFETY: trust me bro
 unsafe impl Send for Terminal {}
 
 pub fn init() {
