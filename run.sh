@@ -37,7 +37,7 @@ qemu-system-x86_64                                     \
     -enable-kvm                                        \
     -debugcon stdio                                    \
     -cpu host                                          \
-    -display gtk,zoom-to-fit=off                       
+    -display gtk,zoom-to-fit=off,show-menubar=off
     # -device ahci,id=ahci0                              \
     # -drive id=disk0,file=$DISK_IMG,format=raw,if=none  \
     # -device ide-hd,drive=disk0,bus=ahci0.0
