@@ -2,6 +2,7 @@ use crate::limine_requests::*;
 use crate::memory::FrameAllocator;
 use crate::memory::paging::{Mapper, PageTable, VirtualAddress};
 use crate::*;
+use crate::arch::*;
 
 /// The entry point of user tasks
 pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x20000000000_u64);

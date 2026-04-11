@@ -2,7 +2,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 use bitflags::bitflags;
 
-use super::port::Port;
+use crate::bus::port::Port;
 use crate::{
     arch::hpet::Hpet,
     arch::interrupts,

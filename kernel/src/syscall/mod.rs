@@ -5,7 +5,7 @@ mod write;
 
 pub use table::*;
 
-use crate::{msr::*, processor::syscall_handler};
+use crate::{arch::msr::*, arch::processor::syscall_handler};
 
 const EFER_SCE: u64 = 1 << 0;
 const EFER_LMA: u64 = 1 << 10;

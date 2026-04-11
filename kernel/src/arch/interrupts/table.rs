@@ -1,6 +1,8 @@
-use core::arch::asm;
+use super::InterruptEntryType;
 use bit_field::BitField;
-use crate::{interrupts::InterruptEntryType, utils::read_cs};
+use core::arch::asm;
+
+use crate::utils::read_cs;
 
 pub struct Idt(pub [Entry; 256]);
 
@@ -13,7 +15,8 @@ impl Idt {
         log::info!("setting up interrupt handler for {entry:?}");
 
         let mut e = Entry::new(SegmentSelector(read_cs()), handler);
-        e.options_mut().set_privilege_level(PrivilegeLevel::RING0.bits());
+        e.options_mut()
+            .set_privilege_level(PrivilegeLevel::RING0.bits());
 
         self.0[entry as usize] = e;
         &mut self.0[entry as usize]
@@ -72,7 +75,7 @@ impl Entry {
     pub fn new(gdt_selector: SegmentSelector, handler: HandlerFn) -> Self {
         // split into 3 parts
         // low, mid, high
-        let ptr = handler as usize; 
+        let ptr = handler as usize;
 
         Self {
             pointer_low: ptr as u16,

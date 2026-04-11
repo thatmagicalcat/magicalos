@@ -13,17 +13,13 @@ use crate::{
 
 extern crate alloc;
 
-mod gdt;
-mod hpet;
-mod interrupts;
+mod arch;
 mod io;
 mod ioapic;
 mod kernel;
 mod limine_requests;
 mod macros;
 mod memory;
-mod msr;
-mod processor;
 mod scheduler;
 mod synch;
 mod syscall;
@@ -60,7 +56,7 @@ pub extern "C" fn kmain() -> ! {
 extern "C" fn f() {
     for i in 0..10 {
         println!("{i}");
-        hpet::HPET
+        arch::hpet::HPET
             .get()
             .unwrap()
             .busy_wait(Duration::from_millis(50));
@@ -70,7 +66,7 @@ extern "C" fn f() {
 extern "C" fn create_user_cat() {
     utils::write_cr3(*memory::paging::user::create_user_page_table() as _);
     memory::paging::user::map_user_entry(user_cat);
-    unsafe { processor::jump_to_user_fn(user_cat) }
+    unsafe { arch::processor::jump_to_user_fn(user_cat) }
 }
 
 extern "C" fn user_cat() {

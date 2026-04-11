@@ -116,19 +116,19 @@ pub(crate) extern "C" fn syscall_handler() {
 #[macro_export]
 macro_rules! syscall {
     ($arg0:expr) => {
-        $crate::processor::syscall0($arg0 as _)
+        $crate::arch::processor::syscall0($arg0 as _)
     };
 
     ($arg0:expr, $arg1:expr) => {
-        $crate::processor::syscall1($arg0 as _, $arg1 as _)
+        $crate::arch::processor::syscall1($arg0 as _, $arg1 as _)
     };
 
     ($arg0:expr, $arg1:expr, $arg2:expr) => {
-        $crate::processor::syscall2($arg0 as _, $arg1 as _, $arg2 as _)
+        $crate::arch::processor::syscall2($arg0 as _, $arg1 as _, $arg2 as _)
     };
 
     ($arg0:expr, $arg1:expr, $arg2:expr, $arg3:expr) => {
-        $crate::processor::syscall3($arg0 as _, $arg1 as _, $arg2 as _, $arg3 as _)
+        $crate::arch::processor::syscall3($arg0 as _, $arg1 as _, $arg2 as _, $arg3 as _)
     };
 
     ($arg0:expr, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr) => {
@@ -136,17 +136,17 @@ macro_rules! syscall {
     };
 
     ($arg0:expr, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr) => {
-        $crate::processor::syscall5(
+        $crate::arch::processor::syscall5(
             $arg0 as _, $arg1 as _, $arg2 as _, $arg3 as _, $arg4 as _, $arg5 as _,
         )
     };
 
     ($arg0:expr, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr, $arg6:expr) => {
-        $crate::processor::syscall6(
+        $crate::arch::processor::syscall6(
             $arg0 as _, $arg1 as _, $arg2 as _, $arg3 as _, $arg4 as _, $arg5 as _, $arg6 as _,
         )
     }; // ($arg0:expr, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr, $arg6:expr, $arg7:expr) => {
-       //     $crate::processor::syscall7(
+       //     $crate::arch::processor::syscall7(
        //         $arg0 as _,
        //         $arg1 as _,
        //         $arg2 as _,

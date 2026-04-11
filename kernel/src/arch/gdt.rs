@@ -3,7 +3,7 @@
 use bit_field::BitField;
 use spin::Once;
 
-use crate::interrupts::{self, TSS, Tss};
+use super::interrupts::{self, TSS, Tss};
 
 const GDT_SIZE: usize = 7;
 static GDT: Once<[GdtEntry; GDT_SIZE]> = Once::new();

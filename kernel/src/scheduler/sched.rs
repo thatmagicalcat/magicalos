@@ -9,7 +9,7 @@ use alloc::{
 };
 
 use crate::{
-    interrupts,
+    arch::interrupts,
     memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::task::{NUM_PRIORITIES, TaskStatus},
 };

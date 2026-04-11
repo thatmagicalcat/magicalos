@@ -1,7 +1,8 @@
 use core::arch::asm;
 
 use crate::{
-    io::{apic, port::Port},
+    bus::{port::Port},
+    arch::apic,
     kernel::USER_ENTRY,
     memory::{
         self,

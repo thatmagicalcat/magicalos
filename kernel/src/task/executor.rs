@@ -6,7 +6,7 @@ use core::{
 use alloc::{collections::BTreeMap, sync::Arc};
 use crossbeam_queue::ArrayQueue;
 
-use crate::{interrupts, scheduler};
+use crate::scheduler;
 
 use super::{Task, TaskId, waker::create_waker};
 

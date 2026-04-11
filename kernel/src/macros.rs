@@ -1,4 +1,5 @@
 use core::fmt::Write;
+use crate::arch::interrupts;
 
 use crate::{
     io::{qemu_debug::QEMU_DEBUGCON},
@@ -80,14 +81,14 @@ macro_rules! flush_tlb {
 
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
-    crate::interrupts::without_interrupts(|| {
+    interrupts::without_interrupts(|| {
         TERMINAL.lock().as_mut().unwrap().write_fmt(args).unwrap();
     });
 }
 
 #[doc(hidden)]
 pub fn _dbg_print(args: core::fmt::Arguments) {
-    crate::interrupts::without_interrupts(|| {
+    interrupts::without_interrupts(|| {
         QEMU_DEBUGCON.lock().write_fmt(args).unwrap();
     });
 }

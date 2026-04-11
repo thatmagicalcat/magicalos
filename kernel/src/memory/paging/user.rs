@@ -1,7 +1,5 @@
-use core::alloc::Layout;
-
 use crate::{
-    interrupts,
+    arch::interrupts,
     kernel::{self, USER_ENTRY},
     limine_requests::HHDM_REQUEST,
     memory::{
