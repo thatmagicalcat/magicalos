@@ -1,6 +1,6 @@
 //! source: https://wiki.osdev.org/PCI
 
-use crate::io::port::Port;
+use crate::bus::port::Port;
 use alloc::vec::Vec;
 const CONFIG_ADDRESS: u16 = 0xCF8;
 const CONFIG_DATA: u16 = 0xCFC;

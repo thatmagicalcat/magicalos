@@ -2,7 +2,7 @@ use core::fmt::Write;
 use crate::arch::interrupts;
 
 use crate::{
-    io::{qemu_debug::QEMU_DEBUGCON},
+    bus::{qemu_debug::QEMU_DEBUGCON},
     terminal::TERMINAL,
 };
 

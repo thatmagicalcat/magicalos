@@ -14,8 +14,7 @@ use crate::{
 extern crate alloc;
 
 mod arch;
-mod io;
-mod ioapic;
+mod bus;
 mod kernel;
 mod limine_requests;
 mod macros;

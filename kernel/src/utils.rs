@@ -1,4 +1,4 @@
-use crate::{io::apic::DivideConfig, memory::paging::PhysicalAddress};
+use crate::{arch::apic::DivideConfig, memory::paging::PhysicalAddress};
 
 pub fn read_cr3() -> PhysicalAddress {
     let value: u64;

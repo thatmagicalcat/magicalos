@@ -57,7 +57,7 @@ pub fn init() {
     terminal::init();
 
     let acpi_tables = parse_acpi_tables();
-    register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);
+    ioapic::register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);
 
     let hpet_info =
         acpi::HpetInfo::new(&acpi_tables).expect("Failed to find HPET info in ACPI tables");
@@ -69,8 +69,8 @@ pub fn init() {
 
     log::info!("HPET frequency: {} MHz", 1_000_000_000 / hpet.time_period);
 
-    io::apic::init(kernel_page_table.mapper_mut(), &mut *allocator);
-    io::apic::calibrate_lapic_timer(hpet);
+    apic::init(kernel_page_table.mapper_mut(), &mut *allocator);
+    apic::calibrate_lapic_timer(hpet);
 
     // IMPORTANT!
     drop(allocator);
@@ -80,10 +80,10 @@ pub fn init() {
     ioapic::enable_irq(
         1,
         interrupts::InterruptEntryType::Keyboard as _,
-        io::apic::get_id(),
+        apic::get_id(),
     );
 
-    let pci_devices = io::pci::enumerate();
+    let pci_devices = bus::pci::enumerate();
     log::info!("Found {} PCI devices:", pci_devices.len());
 
     for device in pci_devices {
@@ -94,15 +94,15 @@ pub fn init() {
 
     let timer_cfg = utils::duration_to_timer_config(
         core::time::Duration::from_millis(10).as_nanos() as _,
-        io::apic::get_timer_frequency(),
+        apic::get_timer_frequency(),
     )
     .expect("Duration too long to convert to ticks");
 
     // slap kernel after every 10ms :)
-    io::apic::set_timer(
+    apic::set_timer(
         timer_cfg.divide_config,
         timer_cfg.initial_count,
-        io::apic::LvtTimerMode::PERIODIC,
+    apic::LvtTimerMode::PERIODIC,
     );
 
     // start slapping lol!
@@ -145,35 +145,7 @@ fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
 //     }
 // }
 
-fn register_ioapics<A: FrameAllocator>(
-    acpi_tables: &acpi::AcpiTables<io::acpi::KernelAcpiHandler>,
-    allocator: &mut A,
-    mapper: &mut Mapper,
-) {
-    let Ok((acpi::platform::InterruptModel::Apic(apic_info), _processor_info)) =
-        acpi::platform::InterruptModel::new(acpi_tables)
-    else {
-        panic!("Unsupported interrupt model");
-    };
-
-    log::info!("Registering IO APICs...");
-
-    apic_info
-        .io_apics
-        .iter()
-        .map(|apic_info: &acpi::platform::interrupt::IoApic| {
-            ioapic::IoApic::new(
-                apic_info.address as usize,
-                apic_info.global_system_interrupt_base as usize,
-                mapper,
-                apic_info.id,
-                allocator,
-            )
-        })
-        .for_each(ioapic::register);
-}
-
-fn parse_acpi_tables() -> acpi::AcpiTables<io::acpi::KernelAcpiHandler> {
+fn parse_acpi_tables() -> acpi::AcpiTables<bus::acpi::KernelAcpiHandler> {
     log::info!("Parsing ACPI tables");
 
     let response = unsafe { &*RSDP_REQUEST.response };
@@ -182,7 +154,7 @@ fn parse_acpi_tables() -> acpi::AcpiTables<io::acpi::KernelAcpiHandler> {
     log::info!("RSDP physical address: {:#010x}", rsdp_phys);
 
     unsafe {
-        acpi::AcpiTables::from_rsdp(io::acpi::KernelAcpiHandler, rsdp_phys as _)
+        acpi::AcpiTables::from_rsdp(bus::acpi::KernelAcpiHandler, rsdp_phys as _)
             .expect("Failed to parse ACPI tables")
     }
 }
