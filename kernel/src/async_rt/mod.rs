@@ -9,7 +9,6 @@ use alloc::boxed::Box;
 pub use executor::Executor;
 
 mod executor;
-pub mod keyboard;
 pub mod timer;
 mod waker;
 

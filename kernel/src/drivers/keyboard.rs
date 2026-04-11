@@ -8,8 +8,20 @@ use futures_util::{Stream, stream::StreamExt, task::AtomicWaker};
 use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 use spin::Once;
 
+use crate::arch::{apic, interrupts, ioapic};
+
 static SCANCODE_QUEUE: Once<ArrayQueue<u8>> = Once::new();
 static WAKER: AtomicWaker = AtomicWaker::new();
+
+pub fn init() {
+    // enable keyboard interrupt
+    // TODO: find the correct GSI for the keyboard instead of hardcoding it to 1
+    ioapic::enable_irq(
+        1,
+        interrupts::InterruptEntryType::Keyboard as _,
+        apic::get_id(),
+    );
+}
 
 pub fn add_scancode(scancode: u8) {
     if let Some(queue) = SCANCODE_QUEUE.get() {

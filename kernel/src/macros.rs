@@ -3,7 +3,7 @@ use crate::arch::interrupts;
 
 use crate::{
     bus::{qemu_debug::QEMU_DEBUGCON},
-    terminal::TERMINAL,
+    drivers::terminal::TERMINAL,
 };
 
 #[macro_export]

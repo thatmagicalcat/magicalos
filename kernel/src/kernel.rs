@@ -1,8 +1,7 @@
-use crate::limine_requests::*;
-use crate::memory::FrameAllocator;
-use crate::memory::paging::{Mapper, PageTable, VirtualAddress};
-use crate::*;
 use crate::arch::*;
+use crate::limine_requests::*;
+use crate::memory::paging::{PageTable, VirtualAddress};
+use crate::*;
 
 /// The entry point of user tasks
 pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x20000000000_u64);
@@ -51,10 +50,8 @@ pub fn init() {
     let kernel_page_table = get_kernel_page_table();
     memory::heap::init(kernel_page_table.mapper_mut(), &mut *allocator);
     memory::init_vmm();
-
     syscall::init();
-
-    terminal::init();
+    drivers::terminal::init();
 
     let acpi_tables = parse_acpi_tables();
     ioapic::register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);
@@ -75,13 +72,7 @@ pub fn init() {
     // IMPORTANT!
     drop(allocator);
 
-    // enable keyboard interrupt
-    // TODO: find the correct GSI for the keyboard instead of hardcoding it to 1
-    ioapic::enable_irq(
-        1,
-        interrupts::InterruptEntryType::Keyboard as _,
-        apic::get_id(),
-    );
+    drivers::keyboard::init();
 
     let pci_devices = bus::pci::enumerate();
     log::info!("Found {} PCI devices:", pci_devices.len());
@@ -102,7 +93,7 @@ pub fn init() {
     apic::set_timer(
         timer_cfg.divide_config,
         timer_cfg.initial_count,
-    apic::LvtTimerMode::PERIODIC,
+        apic::LvtTimerMode::PERIODIC,
     );
 
     // start slapping lol!

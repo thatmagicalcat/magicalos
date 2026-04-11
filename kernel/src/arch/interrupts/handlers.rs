@@ -141,6 +141,6 @@ pub extern "C" fn acpi_timer_interrupt() {
 
 pub extern "C" fn keyboard_handler(_stack_frame: &ExceptionStackFrame) {
     let scancode = unsafe { u8::read_from_port(0x60) };
-    crate::async_rt::keyboard::add_scancode(scancode);
+    crate::drivers::keyboard::add_scancode(scancode);
     apic::send_eoi();
 }

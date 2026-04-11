@@ -2,7 +2,7 @@ use core::fmt;
 
 use spin::{Lazy, Mutex};
 
-use super::port::Port;
+use crate::bus::port::Port;
 
 pub static SERIAL: Lazy<Mutex<SerialPort>> = Lazy::new(|| Mutex::new(SerialPort::new(0x3F8)));
 

@@ -8,12 +8,13 @@ use core::time::Duration;
 use crate::{
     scheduler::NORMAL_PRIORITY,
     syscall::Syscall,
-    terminal::{Color, Reset},
+    drivers::terminal::{Color, Reset},
 };
 
 extern crate alloc;
 
 mod arch;
+mod drivers;
 mod bus;
 mod kernel;
 mod limine_requests;
@@ -23,7 +24,6 @@ mod scheduler;
 mod synch;
 mod syscall;
 mod async_rt;
-mod terminal;
 mod utils;
 mod volatile;
 
