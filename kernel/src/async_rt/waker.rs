@@ -3,7 +3,7 @@ use core::task::Waker;
 use alloc::{sync::Arc, task::Wake};
 use crossbeam_queue::ArrayQueue;
 
-use crate::task::TaskId;
+use super::TaskId;
 
 type TaskQueue = ArrayQueue<TaskId>;
 

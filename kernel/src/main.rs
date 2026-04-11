@@ -23,7 +23,7 @@ mod memory;
 mod scheduler;
 mod synch;
 mod syscall;
-mod task;
+mod async_rt;
 mod terminal;
 mod utils;
 mod volatile;
