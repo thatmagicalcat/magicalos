@@ -18,6 +18,8 @@ flanterm = { path = "../flanterm" }
 limine = { path = "../limine" }
 lock_api = "0.4.14"
 raw-cpuid = "11.6.0"
+num-derive = { version = "0.4.2", default-features = false }
+num-traits = { version = "0.2.19", default-features = false }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [

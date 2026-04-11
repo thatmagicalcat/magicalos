@@ -24,6 +24,8 @@ mod syscall;
 mod async_rt;
 mod utils;
 mod volatile;
+mod io;
+mod errno;
 
 #[rustfmt::skip]
 const MIN_LOG_LEVEL: log::LevelFilter = {
