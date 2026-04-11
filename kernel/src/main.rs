@@ -26,6 +26,7 @@ mod utils;
 mod volatile;
 mod io;
 mod errno;
+mod fd;
 
 #[rustfmt::skip]
 const MIN_LOG_LEVEL: log::LevelFilter = {
