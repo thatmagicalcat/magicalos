@@ -6,9 +6,7 @@
 use core::time::Duration;
 
 use crate::{
-    scheduler::NORMAL_PRIORITY,
-    syscall::Syscall,
-    drivers::terminal::{Color, Reset},
+    arch::processor, drivers::terminal::{Color, Reset}, scheduler::NORMAL_PRIORITY, syscall::Syscall
 };
 
 extern crate alloc;
@@ -40,8 +38,8 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
 pub extern "C" fn kmain() -> ! {
     kernel::init();
 
-    scheduler::spawn(create_user_cat, NORMAL_PRIORITY).unwrap();
-    scheduler::spawn(f, NORMAL_PRIORITY).unwrap();
+    scheduler::spawn(create_user_process, NORMAL_PRIORITY).unwrap();
+    scheduler::spawn(kernel_process, NORMAL_PRIORITY).unwrap();
 
     scheduler::reschedule();
 
@@ -62,18 +60,29 @@ extern "C" fn f() {
     }
 }
 
-extern "C" fn create_user_cat() {
-    utils::write_cr3(*memory::paging::user::create_user_page_table() as _);
-    memory::paging::user::map_user_entry(user_cat);
-    unsafe { arch::processor::jump_to_user_fn(user_cat) }
+/// A function to create a new userspace processes
+extern "C" fn create_user_process() {
+    utils::write_cr3(*memory::paging::user::create_page_table() as _);
+    memory::paging::user::map_user_entry(user_process);
+
+    unsafe { processor::jump_to_user_fn(user_process) }
 }
 
-extern "C" fn user_cat() {
-    let msg = *b"Hello, World\r\n";
+extern "C" fn user_process() {
+    // NOTE: println uses kernel's terminal driver which is located in RING 0
+    // memory, using it will cause a protection violation.
 
+    let msg = *b"Hello from a userspace process!\r\n";
     syscall!(Syscall::Write, msg.as_ptr(), msg.len());
+
     syscall!(Syscall::Exit);
 }
+
+extern "C" fn kernel_process() {
+    // we can use println here, cuz this will run in RING 0
+    println!("Hello from a kernel processes!");
+}
+
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {

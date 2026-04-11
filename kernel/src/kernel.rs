@@ -126,16 +126,6 @@ fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
     }
 }
 
-// fn f(d: Duration, msg: &str) {
-//     let mut count = 0;
-//
-//     loop {
-//         scheduler::sleep(d);
-//         count += 1;
-//         println!("{msg} {count}");
-//     }
-// }
-
 fn parse_acpi_tables() -> acpi::AcpiTables<bus::acpi::KernelAcpiHandler> {
     log::info!("Parsing ACPI tables");
 
@@ -180,6 +170,7 @@ pub fn init_logging() {
 
                 dbg_println!(
                     "{level_color}[{: <5}]{reset} @ <{meta_color}\x1b[3m{file}:{line}\x1b[23m> {reset}{level_color}{}{reset}",
+                    // "{level_color}[{: <5}]{reset} {reset}{level_color}{}{reset}",
                     record.level(),
                     record.args(),
                 );

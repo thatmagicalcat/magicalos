@@ -1,8 +1,8 @@
 use core::arch::asm;
 
 use crate::{
-    bus::{port::Port},
     arch::apic,
+    bus::port::Port,
     kernel::USER_ENTRY,
     memory::{
         self,
@@ -69,8 +69,8 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_co
         virtual_addr = utils::align_down(virtual_addr, memory::PAGE_SIZE) as _;
         let physical_addr = memory::allocate_frame().expect("oom");
 
-        log::trace!(
-            "Map {virtual_addr:#X} -> {:#X}",
+        log::debug!(
+            "Demand Paging: {virtual_addr:#X} -> {:#X}",
             physical_addr.start_address()
         );
 

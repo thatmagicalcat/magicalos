@@ -9,7 +9,7 @@ use crate::{
     scheduler, utils,
 };
 
-pub fn create_user_page_table() -> PhysicalAddress {
+pub fn create_page_table() -> PhysicalAddress {
     interrupts::without_interrupts(|| {
         let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
         let frame = memory::allocate_frame().expect("oom");

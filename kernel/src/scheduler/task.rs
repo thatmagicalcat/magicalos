@@ -8,7 +8,7 @@ use crate::{
     memory::{
         self, Frame,
         paging::{
-            self, L1, L2, L3, L4, Level, PageTable, PhysicalAddress, PhysicalPageTable, TableLevel,
+            L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel,
             VirtualAddress,
         },
     },
@@ -293,6 +293,7 @@ where
 
 impl RecursiveDrop<L1> for L1 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L1>) {
+        log::trace!("Dealloc L1");
         memory::deallocate_frame(Frame::from_addr(
             (ptr as u64 - unsafe { (*HHDM_REQUEST.response).offset }) as _,
         ));
