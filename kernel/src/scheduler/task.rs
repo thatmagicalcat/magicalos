@@ -1,18 +1,15 @@
 use core::{cell::RefCell, mem, ops::Range};
 
-use alloc::{boxed::Box, collections::VecDeque, rc::Rc};
+use alloc::{boxed::Box, collections::{BTreeMap, VecDeque}, rc::Rc, sync::Arc};
 
 use crate::{
-    kernel,
-    limine_requests::HHDM_REQUEST,
-    memory::{
+    fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO}, io::IoInterface, kernel, limine_requests::HHDM_REQUEST, memory::{
         self, Frame,
         paging::{
             L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel,
             VirtualAddress,
         },
-    },
-    scheduler,
+    }, scheduler
 };
 
 pub const STACK_SIZE: usize = 0x3000;
@@ -164,10 +161,17 @@ pub(crate) struct Task {
 
     /// The physical address of PML4 page table for this task
     pub root_page_table: PhysicalAddress,
+    pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>
 }
 
 impl Task {
     pub fn new(id: TaskId, status: TaskStatus, priority: TaskPriority) -> Self {
+        let mut fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>> = BTreeMap::new();
+
+        fd_map.insert(STDIN_FILENO, Arc::new(fd::generic::GenericStdin));
+        fd_map.insert(STDOUT_FILENO, Arc::new(fd::generic::GenericStdout));
+        fd_map.insert(STDERR_FILENO, Arc::new(fd::generic::GenericStderr));
+
         Self {
             id,
             status,
@@ -175,6 +179,7 @@ impl Task {
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
+            fd_map,
         }
     }
 
@@ -186,6 +191,7 @@ impl Task {
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
+            fd_map: BTreeMap::new(),
         }
     }
 

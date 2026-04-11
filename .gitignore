@@ -3,3 +3,5 @@ kernel/target
 build
 isodir
 *.iso
+sysroot
+mlibc

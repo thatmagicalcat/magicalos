@@ -6,13 +6,12 @@ use crate::errno;
 #[repr(isize)]
 pub(crate) enum Error {
     NotImplemented = errno::ENOIMPL as _,
+    NoSuchFileOrDirectory = errno::ENOENT as _,
 }
 
 impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match *self {
-            Self::NotImplemented => write!(f, "Not implemented")
-        }
+        write!(f, "{self:?}")
     }
 }
 

@@ -1,8 +1,8 @@
 use core::fmt::Debug;
 
-use crate::io::error::Error;
+mod error;
 
-pub mod error;
+pub(crate) use error::Error;
 
 pub type Result<T> = core::result::Result<T, Error>;
 

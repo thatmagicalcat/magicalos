@@ -35,6 +35,10 @@ impl Terminal {
     pub const fn inner(&mut self) -> *mut flanterm::flanterm_context {
         self.ctx
     }
+
+    pub fn write_bytes(&mut self, buf: &[u8]) {
+        unsafe { flanterm::flanterm_write(self.ctx, buf.as_ptr() as _, buf.len()) };
+    }
 }
 
 impl core::fmt::Write for Terminal {

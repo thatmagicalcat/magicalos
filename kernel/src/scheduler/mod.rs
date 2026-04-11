@@ -1,9 +1,11 @@
 #![allow(static_mut_refs)]
 
-use alloc::rc::Rc;
+use alloc::{rc::Rc, sync::Arc};
 use core::cell::{RefCell, UnsafeCell};
 
 use crate::{
+    fd::FileDescriptor,
+    io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::{
         sched::Scheduler,
@@ -44,6 +46,10 @@ pub(crate) fn get_current_interrupt_stack() -> VirtualAddress {
 
 pub(crate) fn block_current_task() -> Rc<RefCell<Task>> {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).block_current_task() }
+}
+
+pub(crate) fn get_io_interface(fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_io_interface(fd) }
 }
 
 pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {

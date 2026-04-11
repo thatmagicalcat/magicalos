@@ -1,13 +1,10 @@
-use core::mem::ManuallyDrop;
-
-use alloc::string::String;
+use crate::fd::FileDescriptor;
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn sys_write(s: *const u8, len: usize) -> isize {
+pub(crate) extern "C" fn sys_write(fd: FileDescriptor, buf: *mut u8, len: usize) -> isize {
     log::debug!("Enter syswrite");
 
-    // SAFETY: casting *const u8 -> *mut u8 is actually safe because we are not making any changes
-    let str = ManuallyDrop::new(unsafe { String::from_raw_parts(s as *mut u8, len, len) });
-    crate::print!("{}", *str);
-    len as _
+    let slice = unsafe { core::slice::from_raw_parts(buf, len) };
+    crate::fd::write(fd, slice)
+        .map_or_else(|e| -num::ToPrimitive::to_isize(&e).unwrap(), |v| v as _)
 }

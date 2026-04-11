@@ -76,8 +76,8 @@ extern "C" fn user_process() {
     // memory, using it will cause a protection violation.
 
     let msg = *b"Hello from a userspace process!\r\n";
-    syscall!(Syscall::Write, msg.as_ptr(), msg.len());
 
+    syscall!(Syscall::Write, fd::STDOUT_FILENO, msg.as_ptr(), msg.len());
     syscall!(Syscall::Exit);
 }
 

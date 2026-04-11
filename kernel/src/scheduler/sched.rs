@@ -6,10 +6,13 @@ use core::{
 use alloc::{
     collections::{BTreeMap, VecDeque},
     rc::Rc,
+    sync::Arc,
 };
 
 use crate::{
     arch::interrupts,
+    fd::FileDescriptor,
+    io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::task::{NUM_PRIORITIES, TaskStatus},
 };
@@ -84,6 +87,17 @@ impl Scheduler {
             );
 
             Ok(task_id)
+        })
+    }
+
+    pub(crate) fn get_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
+        interrupts::without_interrupts(|| {
+            self.current_task
+                .borrow()
+                .fd_map
+                .get(&fd)
+                .map(Arc::clone)
+                .ok_or(io::Error::NoSuchFileOrDirectory)
         })
     }
 
