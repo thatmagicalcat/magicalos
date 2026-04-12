@@ -76,7 +76,7 @@ unsafe extern "C" fn __jump_to_user_land(ds: usize, stack: usize, cs: usize, ent
 #[unsafe(naked)]
 pub(crate) extern "C" fn syscall_handler() {
     naked_asm! {
-        // save context, see x86_64 ABI
+        // save context
         "push rcx",
         "push rdx",
         "push rsi",
@@ -90,11 +90,11 @@ pub(crate) extern "C" fn syscall_handler() {
         "mov rcx, rsp",
         "rdgsbase rsp",
         "push rcx",
-        // copy 4th argument to rcx to adhere x86_64 ABI
+        // copy 4th argument to rcx
         "mov rcx, r10",
         "sti",
         "call [{sys_table}+8*rax]",
-        // restore context, see x86_64 ABI
+        // restore context
         "cli",
         // switch to user stack
         "pop rcx",

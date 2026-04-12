@@ -48,10 +48,13 @@ pub fn init() {
     let mut allocator = memory::lock_global_frame_allocator();
 
     let kernel_page_table = get_kernel_page_table();
+    //////////////////////////////////// HEAP INIT
     memory::heap::init(kernel_page_table.mapper_mut(), &mut *allocator);
+
     memory::init_vmm();
     syscall::init();
     drivers::terminal::init();
+    fs::init_vfs();
 
     let acpi_tables = parse_acpi_tables();
     ioapic::register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);

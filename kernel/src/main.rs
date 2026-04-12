@@ -6,14 +6,21 @@
 use core::time::Duration;
 
 use crate::{
-    arch::processor, drivers::terminal::{Color, Reset}, scheduler::NORMAL_PRIORITY, syscall::Syscall
+    arch::processor,
+    drivers::terminal::{Color, Reset},
+    scheduler::NORMAL_PRIORITY,
+    syscall::Syscall,
 };
 
 extern crate alloc;
 
 mod arch;
-mod drivers;
+mod async_rt;
 mod bus;
+mod drivers;
+mod errno;
+mod fd;
+mod io;
 mod kernel;
 mod limine_requests;
 mod macros;
@@ -21,12 +28,9 @@ mod memory;
 mod scheduler;
 mod synch;
 mod syscall;
-mod async_rt;
 mod utils;
+mod fs;
 mod volatile;
-mod io;
-mod errno;
-mod fd;
 
 #[rustfmt::skip]
 const MIN_LOG_LEVEL: log::LevelFilter = {
@@ -85,7 +89,6 @@ extern "C" fn kernel_process() {
     // we can use println here, cuz this will run in RING 0
     println!("Hello from a kernel processes!");
 }
-
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {

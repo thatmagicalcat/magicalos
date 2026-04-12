@@ -105,27 +105,27 @@ impl LinkedListAllocator {
                     last.next = next_free;
                 }
 
-                if log::log_enabled!(log::Level::Trace) {
-                    let es = format_args!(" (effective: {})", effective_size);
-                    let ea = format_args!(" (effective: {})", effective_align);
-                    let empty = format_args!("");
-
-                    log::trace!(
-                        "kmalloc(): size = {}{}, align = {}{}",
-                        layout.size(),
-                        if layout.size() < FreeBlock::MIN_SIZE {
-                            es
-                        } else {
-                            empty
-                        },
-                        layout.align(),
-                        if layout.align() < FreeBlock::ALIGNMENT {
-                            ea
-                        } else {
-                            empty
-                        },
-                    );
-                }
+                // if log::log_enabled!(log::Level::Trace) {
+                //     let es = format_args!(" (effective: {})", effective_size);
+                //     let ea = format_args!(" (effective: {})", effective_align);
+                //     let empty = format_args!("");
+                //
+                //     log::trace!(
+                //         "kmalloc(): size = {}{}, align = {}{}",
+                //         layout.size(),
+                //         if layout.size() < FreeBlock::MIN_SIZE {
+                //             es
+                //         } else {
+                //             empty
+                //         },
+                //         layout.align(),
+                //         if layout.align() < FreeBlock::ALIGNMENT {
+                //             ea
+                //         } else {
+                //             empty
+                //         },
+                //     );
+                // }
 
                 return NonNull::new(alloc_start as *mut _);
             }
@@ -141,28 +141,28 @@ impl LinkedListAllocator {
         let effective_size = layout.size().max(FreeBlock::MIN_SIZE);
         let addr = ptr.as_ptr() as usize;
 
-        if log::log_enabled!(log::Level::Trace) {
-            let effective_align = layout.align().max(FreeBlock::ALIGNMENT);
-            let es = format_args!(" (effective: {effective_size})");
-            let ea = format_args!(" (effective: {effective_align})");
-            let empty = format_args!("");
-
-            log::trace!(
-                "kfree(): size = {}{}, align = {}{}",
-                layout.size(),
-                if layout.size() < FreeBlock::MIN_SIZE {
-                    es
-                } else {
-                    empty
-                },
-                layout.align(),
-                if layout.align() < FreeBlock::ALIGNMENT {
-                    ea
-                } else {
-                    empty
-                },
-            );
-        }
+        // if log::log_enabled!(log::Level::Trace) {
+        //     let effective_align = layout.align().max(FreeBlock::ALIGNMENT);
+        //     let es = format_args!(" (effective: {effective_size})");
+        //     let ea = format_args!(" (effective: {effective_align})");
+        //     let empty = format_args!("");
+        //
+        //     log::trace!(
+        //         "kfree(): size = {}{}, align = {}{}",
+        //         layout.size(),
+        //         if layout.size() < FreeBlock::MIN_SIZE {
+        //             es
+        //         } else {
+        //             empty
+        //         },
+        //         layout.align(),
+        //         if layout.align() < FreeBlock::ALIGNMENT {
+        //             ea
+        //         } else {
+        //             empty
+        //         },
+        //     );
+        // }
 
         let new_block_ptr = addr as *mut FreeBlock;
         let new_block = FreeBlock {

@@ -7,6 +7,11 @@ use crate::errno;
 pub(crate) enum Error {
     NotImplemented = errno::ENOIMPL as _,
     NoSuchFileOrDirectory = errno::ENOENT as _,
+    InvalidValue = errno::EINVAL as _,
+    BadFileDescriptor = errno::EBADF as _,
+    InvalidArgument = errno::ENOINVARG as _,
+    NotADirectory = errno::ENOTDIR as _,
+    InvalidFsPath = errno::ENOINVPATH as _,
 }
 
 impl core::fmt::Display for Error {
