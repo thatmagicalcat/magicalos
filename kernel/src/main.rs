@@ -18,8 +18,10 @@ mod arch;
 mod async_rt;
 mod bus;
 mod drivers;
+mod elf;
 mod errno;
 mod fd;
+mod fs;
 mod io;
 mod kernel;
 mod limine_requests;
@@ -29,7 +31,6 @@ mod scheduler;
 mod synch;
 mod syscall;
 mod utils;
-mod fs;
 mod volatile;
 
 #[rustfmt::skip]
