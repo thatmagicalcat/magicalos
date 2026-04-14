@@ -4,11 +4,10 @@ use alloc::{boxed::Box, collections::{BTreeMap, VecDeque}, rc::Rc, sync::Arc};
 
 use crate::{
     fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO}, io::IoInterface, kernel, limine_requests::HHDM_REQUEST, memory::{
-        self, Frame,
-        paging::{
+        self, Frame, VmSpace, paging::{
             L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel,
             VirtualAddress,
-        },
+        }
     }, scheduler
 };
 
@@ -161,7 +160,8 @@ pub(crate) struct Task {
 
     /// The physical address of PML4 page table for this task
     pub root_page_table: PhysicalAddress,
-    pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>
+    pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>,
+    pub vmspace: VmSpace,
 }
 
 impl Task {
@@ -179,6 +179,7 @@ impl Task {
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
+            vmspace: VmSpace::new(),
             fd_map,
         }
     }
@@ -191,6 +192,7 @@ impl Task {
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
+            vmspace: VmSpace::new(),
             fd_map: BTreeMap::new(),
         }
     }

@@ -4,11 +4,13 @@ pub use bitmapframealloc::BitmapFrameAllocator;
 use spin::Mutex;
 
 mod bitmapframealloc;
+mod vmspace;
 mod vmm;
 pub mod heap;
 pub mod paging;
 mod tinyalloc;
 
+pub use vmspace::*;
 pub use vmm::{VMM, init_vmm};
 
 pub const PAGE_SIZE: usize = 1024 * 4;
