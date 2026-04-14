@@ -40,6 +40,9 @@ good question... even idk, but here's the progress so far xD
   - ~Custom VGA text buffer interface with color support~
   - VESA graphics with a flanterm for a modern terminal experience.
   - qemu logging to easily see kernel traces in the host terminal.
+- **Userspace and Syscalls**: A simple syscall interface with a few implemented syscalls
+- **File system**:
+  - In memory Virtual File System (VFS)
 
 ## Getting Started
 
@@ -54,7 +57,7 @@ You need a Linux environment (or WSL2) with the following tools installed:
    rustup component add rust-src
    ```
 2. **QEMU**: For emulating the x86_64 machine.
-3. **GRUB & xorriso**: To generate the bootable `.iso` file.
+3. **xorriso**: To generate the bootable `.iso` file.
 
 ### Building and Running
 
@@ -63,7 +66,7 @@ Running the OS is completely automated via Cargo thanks to `.cargo/config.toml` 
 Just clone the repository and run:
 
 ```bash
-cargo run --release
+RUST_LOG=info cargo run --release
 ```
 
 This command will:
@@ -81,10 +84,16 @@ I'm constantly trying to add magic, here's the rough roadmap of features I want 
     - [x] Implement OS Threads and a simple executor.
     - [ ] Add support for user-space processes and context switching between them.
 - [ ] **Phase 3: Storage** (PCI enumeration, Block devices, VFS, FAT32)
-    - [ ] Implement PCI enumeration to detect storage devices.
-    - [ ] Build a simple block device driver and a virtual file system (VFS)
+    - [x] Virtual File System (VFS) layer
+    - [x] Implement PCI enumeration to detect storage devices.
     - [ ] Add support for a simple filesystem like FAT32 to read/write files from disk.
 - [ ] **Phase 4: User Space** (Syscalls, Processes, ELF loader)
+    - [x] System calls
+    - [x] Userspace processes with memory isolation and context switching
+    - [ ] Implement an ELF loader to run user-space applications.
+- [ ] **Phase 5: libc and Userland** (C library, Shell, Basic utilities)
+    - [ ] Port mlibc
+    - [ ] Port bash
 
 ## Acknowledgements
 
