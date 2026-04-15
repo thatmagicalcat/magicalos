@@ -50,10 +50,33 @@ enum ElfClass {
     Class64 = 2,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u32)]
+#[allow(clippy::upper_case_acronyms)]
+enum Elf64ProgramHeaderType {
+    Null = 0,
+    /// Loadable segment
+    Load = 1,
+    /// Dynamic linking information
+    Dynamic = 2,
+    /// Interpreted program interpreter path name
+    Interpreter = 3,
+    /// Auxiliary information
+    Note = 4,
+    /// Reserved
+    Shlib = 5,
+    /// Program header table itself
+    ProgramHeaderTable = 6,
+    /// Processor-specific
+    LOPROC = 0x70000000,
+    /// Processor-specific
+    HIPROC = 0x7FFFFFFF,
+}
+
 #[derive(Debug)]
 #[repr(C)]
-struct Elf64 {
-    type_: u32,
+struct Elf64ProgramHeader {
+    type_: Elf64ProgramHeaderType,
     flags: u32,
     /// offset from the beginning of the file at which the first byte of this segment resides
     offset: u64,
