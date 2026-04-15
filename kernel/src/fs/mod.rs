@@ -8,6 +8,7 @@ use crate::io::{self, IoInterface};
 mod data_handle;
 mod error;
 mod vfs;
+pub mod tar;
 
 static mut VFS_ROOT: Option<vfs::VfsRoot> = None;
 
