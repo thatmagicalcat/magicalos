@@ -6,11 +6,11 @@ use crate::bus::port::Port;
 use crate::{
     arch::hpet::Hpet,
     arch::interrupts,
+    arch::msr::*,
     memory::{
         Frame, FrameAllocator,
-        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
+        paging::{Mapper, PageTableEntryFlags, VirtualAddress},
     },
-    arch::msr::*,
 };
 
 static LAPIC_TIMER_FREQ: AtomicU64 = AtomicU64::new(0);

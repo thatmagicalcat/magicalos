@@ -4,6 +4,7 @@ members = [
     "flanterm",
     "kernel",
     "limine",
+    "xtasks",
 ]
 
 [profile.release]

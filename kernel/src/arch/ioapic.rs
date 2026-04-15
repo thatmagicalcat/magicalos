@@ -3,14 +3,14 @@
 use alloc::vec::Vec;
 use core::ptr;
 
-use bitflags::bitflags;
 use crate::bus;
 use crate::synch::Spinlock;
+use bitflags::bitflags;
 
 use crate::{
     memory::{
         self, Frame, FrameAllocator,
-        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
+        paging::{Mapper, PageTableEntryFlags, VirtualAddress},
     },
     utils,
 };

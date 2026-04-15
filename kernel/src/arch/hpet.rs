@@ -7,7 +7,7 @@ use spin::Once;
 use crate::{
     memory::{
         self, Frame, FrameAllocator,
-        paging::{PageTableEntryFlags, Mapper, VirtualAddress},
+        paging::{Mapper, PageTableEntryFlags, VirtualAddress},
     },
     utils,
 };

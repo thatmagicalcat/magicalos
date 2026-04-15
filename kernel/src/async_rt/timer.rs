@@ -8,7 +8,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use futures_util::task::AtomicWaker;
 use spin::Mutex;
 
-use crate::{arch::hpet::HPET, arch::apic, utils};
+use crate::{arch::apic, arch::hpet::HPET, utils};
 
 type Nanoseconds = u64;
 

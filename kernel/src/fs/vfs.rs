@@ -1,9 +1,9 @@
 use core::any::Any;
 
 use crate::{
+    dbg_print, dbg_println,
     fs::data_handle::{DynamicData, StaticData},
     io::{self, IoInterface},
-    dbg_print, dbg_println,
     synch::Spinlock,
 };
 
@@ -70,9 +70,7 @@ impl VfsRoot {
     }
 
     pub fn lsdir(&self) -> io::Result<()> {
-        self.inner
-            .lock()
-            .tree_lsdir();
+        self.inner.lock().tree_lsdir();
         Ok(())
     }
 }

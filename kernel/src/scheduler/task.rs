@@ -1,14 +1,24 @@
 use core::{cell::RefCell, mem, ops::Range};
 
-use alloc::{boxed::Box, collections::{BTreeMap, VecDeque}, rc::Rc, sync::Arc};
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, VecDeque},
+    rc::Rc,
+    sync::Arc,
+};
 
 use crate::{
-    fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO}, io::IoInterface, kernel, limine_requests::HHDM_REQUEST, memory::{
-        self, Frame, VmSpace, paging::{
-            L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel,
-            VirtualAddress,
-        }
-    }, scheduler
+    fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
+    io::IoInterface,
+    kernel,
+    limine_requests::HHDM_REQUEST,
+    memory::{
+        self, Frame, VmSpace,
+        paging::{
+            L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress,
+        },
+    },
+    scheduler,
 };
 
 pub const STACK_SIZE: usize = 0x3000;

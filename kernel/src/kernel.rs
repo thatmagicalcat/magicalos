@@ -163,16 +163,11 @@ pub fn init_logging() {
                 let meta_color = "\x1b[90m"; // Dim Gray for file/line
                 let reset = "\x1b[0m";
 
-                let file = record
-                    .file()
-                    .unwrap_or("?")
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("?");
+                let file = &record.file().unwrap_or("?")["kernel/src/".len()..];
                 let line = record.line().unwrap_or(0);
 
                 dbg_println!(
-                    "{level_color}[{: <5}]{reset} @ <{meta_color}\x1b[3m{file}:{line}\x1b[23m> {reset}{level_color}{}{reset}",
+                    "{level_color}[{: <5}]{reset} @ {meta_color}\x1b[3m<{file}:{line}>\x1b[23m{reset} {level_color}{}{reset}",
                     // "{level_color}[{: <5}]{reset} {reset}{level_color}{}{reset}",
                     record.level(),
                     record.args(),
@@ -187,44 +182,3 @@ pub fn init_logging() {
     log::set_logger(&LOGGER).expect("Failed to set logger");
     log::set_max_level(log::LevelFilter::Trace);
 }
-
-// pub fn init_user_land<A: FrameAllocator>(allocator: &mut A) {
-//     log::info!("Initializing userland...");
-//
-//     let userland_start = unsafe { USERLAND_START.as_ptr() as usize };
-//     let userland_end = unsafe { USERLAND_END.as_ptr() as usize };
-//     let userland_size = userland_end - userland_start;
-//     let required_pages = userland_size.div_ceil(memory::PAGE_SIZE);
-//     let userland_flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
-//
-//     log::info!("  * code size: {userland_size} bytes, requires {required_pages} page(s)");
-//
-//     let mut page_table = PhysicalPageTable::new();
-//     let mapper = page_table.mapper_mut();
-//
-//     log::info!(
-//         "  * mapping userland to virtual address {:#010x}...",
-//         USERLAND_VIRT_ADDR.0
-//     );
-//
-//     for frame_idx in 0..required_pages {
-//         let page = VirtualAddress(USERLAND_VIRT_ADDR.0 + (frame_idx * memory::PAGE_SIZE) as u64);
-//         mapper.map(page, userland_flags, allocator);
-//     }
-//
-//     log::info!("  * copying userland code to allocated memory");
-//     unsafe {
-//         core::ptr::copy_nonoverlapping(
-//             userland_start as *mut u8,
-//             USERLAND_VIRT_ADDR.0 as _,
-//             userland_size,
-//         );
-//     }
-// }
-//
-// pub fn get_user_fn_address(original_fn: extern "C" fn()) -> VirtualAddress {
-//     let addr = original_fn as usize;
-//     let offset = addr - unsafe { USERLAND_START.as_ptr() as usize };
-//
-//     VirtualAddress(USERLAND_VIRT_ADDR.0 + offset as u64)
-// }

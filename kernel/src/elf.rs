@@ -87,7 +87,7 @@ struct Elf64ProgramHeader {
     file_size: u64,
     /// number of bytes in the memory image of the segment; may be zero
     mem_size: u64,
-    alignment: u64
+    alignment: u64,
 }
 
 #[derive(Debug)]

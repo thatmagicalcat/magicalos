@@ -1,10 +1,7 @@
-use core::fmt::Write;
 use crate::arch::interrupts;
+use core::fmt::Write;
 
-use crate::{
-    bus::{qemu_debug::QEMU_DEBUGCON},
-    drivers::terminal::TERMINAL,
-};
+use crate::{bus::qemu_debug::QEMU_DEBUGCON, drivers::terminal::TERMINAL};
 
 #[macro_export]
 macro_rules! print {

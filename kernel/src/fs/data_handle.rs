@@ -1,8 +1,12 @@
-use spin::RwLock;
 use alloc::{sync::Arc, vec::Vec};
+use spin::RwLock;
 
 use super::SeekFrom;
-use crate::{fs::OpenOptions, io::{self, IoInterface}, synch::Spinlock};
+use crate::{
+    fs::OpenOptions,
+    io::{self, IoInterface},
+    synch::Spinlock,
+};
 
 #[derive(Debug)]
 pub(crate) struct StaticData {

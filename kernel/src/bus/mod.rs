@@ -1,4 +1,4 @@
-pub mod port;
 pub mod acpi;
-pub mod qemu_debug;
 pub mod pci;
+pub mod port;
+pub mod qemu_debug;

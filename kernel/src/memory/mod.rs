@@ -4,14 +4,14 @@ pub use bitmapframealloc::BitmapFrameAllocator;
 use spin::Mutex;
 
 mod bitmapframealloc;
-mod vmspace;
-mod vmm;
 pub mod heap;
 pub mod paging;
 mod tinyalloc;
+mod vmm;
+mod vmspace;
 
-pub use vmspace::*;
 pub use vmm::{VMM, init_vmm};
+pub use vmspace::*;
 
 pub const PAGE_SIZE: usize = 1024 * 4;
 
@@ -65,7 +65,6 @@ impl Frame {
     pub const fn start_address(&self) -> usize {
         self.0 * PAGE_SIZE
     }
-
 
     pub const fn end_address(&self) -> usize {
         (self.0 + 1) * PAGE_SIZE

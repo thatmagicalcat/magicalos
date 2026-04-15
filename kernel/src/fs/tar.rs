@@ -41,17 +41,9 @@ impl<'a> TarEntiresIterator<'a> {
 
 #[derive(Debug)]
 pub enum TarEntry<'a> {
-    File {
-        name: &'a str,
-        data: &'a [u8],
-    },
-    Directory {
-        name: &'a str,
-    },
-    Other {
-        name: &'a str,
-        typeflag: u8,
-    },
+    File { name: &'a str, data: &'a [u8] },
+    Directory { name: &'a str },
+    Other { name: &'a str, typeflag: u8 },
 }
 
 impl<'a> Iterator for TarEntiresIterator<'a> {
