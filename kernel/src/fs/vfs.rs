@@ -122,8 +122,6 @@ impl VfsDirectoryNode for VfsDirectory {
     }
 
     fn tree_lsdir(&self) {
-        log::info!("FS Tree:");
-
         dbg_println!("/");
         fn helper(this: &VfsDirectory, prefixes: &mut Vec<bool>) {
             let children_count = this.children.len();

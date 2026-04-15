@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
 PROJECT_ROOT=$(dirname "$0")
 KERNEL_PATH=$1
@@ -8,6 +8,9 @@ LIMINE=$PROJECT_ROOT/limine/Limine/bin
 echo "Building ISO Image with kernel: $KERNEL_PATH"
 
 mkdir -p $ISO_ROOT/boot/limine
+
+# Create initramfs.tar
+tar cvf $ISO_ROOT/boot/initramfs.tar -C $PROJECT_ROOT/initramfs .
 
 # cp -v $PROJECT_ROOT/ter-u32n.psf $ISO_ROOT/boot/limine/
 cp -v $PROJECT_ROOT/wallpaper.png $ISO_ROOT/boot/limine/

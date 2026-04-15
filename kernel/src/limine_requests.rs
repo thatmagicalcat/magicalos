@@ -54,6 +54,8 @@ const LIMINE_HHDM_REQUEST_ID: [u64; 4] = with_common_magic![0x48dcf1cb8ad2b852, 
 const LIMINE_RSDP_REQUEST_ID: [u64; 4] = with_common_magic![0xc5e77b6b397e7b43, 0x27637845accdcf3c];
 const LIMINE_MMAP_REQUEST_ID: [u64; 4] = with_common_magic![0x67cf3d9d378a806f, 0xe304acdfc50c3c62];
 const LIMINE_FB_REQUEST_ID: [u64; 4] = with_common_magic![0x9d5827dcd881dd75, 0xa3148604f6fab11b];
+const LIMINE_MODULE_REQUEST_ID: [u64; 4] =
+    with_common_magic![0x3e7e279702be32af, 0xca1c4f3bd1280cee];
 const LIMINE_FLANTERM_FB_INIT_PARAMS_REQUEST_ID: [u64; 4] =
     with_common_magic![0x3259399fe7c5f126, 0xe01c1c8c5db9d1a9];
 
@@ -93,6 +95,14 @@ limine_requests! {
         id: LIMINE_RSDP_REQUEST_ID,
         revision: 0,
         response: ptr::null_mut(),
+    };
+
+    pub static MODULE_REQUEST: limine_module_request = limine_module_request {
+        id: LIMINE_MODULE_REQUEST_ID,
+        revision: 0,
+        response: ptr::null_mut(),
+        internal_module_count: 0,
+        internal_modules: ptr::null_mut(),
     };
 
     pub static FLANTERM_FB_INIT_PARAMS_REQUEST: limine_flanterm_fb_init_params_request =
