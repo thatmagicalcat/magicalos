@@ -1,46 +1,81 @@
 use std::path::Path;
-use std::process::ExitStatus;
+use std::time::SystemTime;
 use std::{fs, io};
 
-pub type DynError = Box<dyn std::error::Error>;
+/// Recursively find the newest modification time of a file or directory
+pub fn get_newest_mtime(path: impl AsRef<Path>) -> io::Result<SystemTime> {
+    let path = path.as_ref();
+    let metadata = fs::metadata(path)?;
 
-pub trait EarlyRet<E>: Sized {
-    fn early_ret(self) -> Result<Self, E>;
-}
-
-impl EarlyRet<DynError> for ExitStatus {
-    fn early_ret(self) -> Result<Self, DynError> {
-        match self.success() {
-            true => Ok(self),
-            false => Err(io::Error::other("Command failed").into()),
-        }
+    if metadata.is_file() {
+        return metadata.modified();
     }
-}
 
-/// Copy all the contents of src directory to dst directory, creating dst if it doesn't exist
-pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
-    create_dir(&dst)?;
-    for entry in fs::read_dir(src)? {
+    let mut newest = metadata.modified()?;
+
+    for entry in fs::read_dir(path)? {
         let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        } else {
-            fs::copy(
-                dbg!(entry.path()),
-                dbg!(dst.as_ref().join(entry.file_name())),
-            )?;
+        let mtime = get_newest_mtime(entry.path())?;
+        if mtime > newest {
+            newest = mtime;
         }
     }
 
-    Ok(())
+    Ok(newest)
 }
 
-/// Creates a directory and all of its parent components if they are missing, but does nothing if
-/// the directory already exists
-pub fn create_dir(path: impl AsRef<Path>) -> io::Result<()> {
-    if !path.as_ref().exists() {
-        fs::create_dir_all(path)?;
+/// Recursively find the oldest modification time of a file or directory
+pub fn get_oldest_mtime(path: impl AsRef<Path>) -> io::Result<SystemTime> {
+    let path = path.as_ref();
+    let metadata = fs::metadata(path)?;
+
+    if metadata.is_file() {
+        return metadata.modified();
     }
 
-    Ok(())
+    let mut oldest = metadata.modified()?;
+
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let mtime = get_oldest_mtime(entry.path())?;
+        if mtime < oldest {
+            oldest = mtime;
+        }
+    }
+
+    Ok(oldest)
+}
+
+/// Returns true if any of the input files are newer than any of the output files
+pub fn is_stale(inputs: &[&Path], outputs: &[&Path]) -> color_eyre::Result<bool> {
+    let mut newest_input = SystemTime::UNIX_EPOCH;
+    for input in inputs {
+        if !input.exists() {
+            continue;
+        }
+        let mtime = get_newest_mtime(input)?;
+        if mtime > newest_input {
+            newest_input = mtime;
+        }
+    }
+
+    let mut oldest_output = SystemTime::now();
+    for output in outputs {
+        if !output.exists() {
+            return Ok(true); // Output missing, definitely stale
+        }
+        let mtime = get_oldest_mtime(output)?;
+        if mtime < oldest_output {
+            oldest_output = mtime;
+        }
+    }
+
+    Ok(newest_input > oldest_output)
+}
+
+pub fn project_root() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("Failed to find project root")
+        .to_path_buf()
 }

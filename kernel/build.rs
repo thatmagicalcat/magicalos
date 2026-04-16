@@ -9,6 +9,7 @@ fn main() {
         _ => panic!("invalid log level"),
     }
 
+    println!("cargo:rerun-if-env-changed=RUST_LOG");
     println!("cargo:rerun-if-changed=linker.ld");
     println!("cargo:rustc-link-arg=-Tlinker.ld");
 }
