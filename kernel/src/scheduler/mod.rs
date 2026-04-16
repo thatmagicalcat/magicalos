@@ -52,6 +52,10 @@ pub(crate) fn get_io_interface(fd: FileDescriptor) -> io::Result<Arc<dyn IoInter
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_io_interface(fd) }
 }
 
+pub(crate) fn add_io_interface(interface: Arc<dyn IoInterface>) -> io::Result<FileDescriptor> {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).add_io_interface(interface) }
+}
+
 pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };
 }

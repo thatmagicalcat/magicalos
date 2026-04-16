@@ -12,6 +12,7 @@ pub(crate) enum Error {
     InvalidArgument = errno::ENOINVARG as _,
     NotADirectory = errno::ENOTDIR as _,
     InvalidFsPath = errno::ENOINVPATH as _,
+    TooManyOpenFiles = errno::EMFILE as _,
 }
 
 impl core::fmt::Display for Error {

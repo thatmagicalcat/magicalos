@@ -11,10 +11,13 @@ pub const ENOINVARG: i32 = 2;
 pub const ENOTDIR: i32 = 3;
 
 /// Invalid value
-pub const EINVAL: isize = 4;
+pub const EINVAL: i32 = 4;
 
 /// Bad file descriptor
-pub const EBADF: isize = 5;
+pub const EBADF: i32 = 5;
 
 /// Invalid filesystem path
-pub const ENOINVPATH: isize = 6;
+pub const ENOINVPATH: i32 = 6;
+
+/// Too many open files
+pub const EMFILE: i32 = 7;

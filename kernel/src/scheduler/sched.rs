@@ -101,6 +101,22 @@ impl Scheduler {
         })
     }
 
+    pub(crate) fn add_io_interface(
+        &mut self,
+        interface: Arc<dyn IoInterface>,
+    ) -> io::Result<FileDescriptor> {
+        // find a free file descriptor
+        let fd = (0..FileDescriptor::MAX)
+            .find(|i| !self.current_task.borrow().fd_map.contains_key(i))
+            .ok_or(io::Error::TooManyOpenFiles)?;
+
+        interrupts::without_interrupts(|| {
+            self.current_task.borrow_mut().fd_map.insert(fd, interface);
+        });
+
+        Ok(fd)
+    }
+
     pub fn exit(&mut self) -> ! {
         interrupts::without_interrupts(|| {
             if self.current_task.borrow().status != TaskStatus::Idle {

@@ -1,18 +1,24 @@
+#![allow(static_mut_refs)]
+
 use alloc::{sync::Arc, vec::Vec};
 use core::{any::Any, fmt::Debug};
 use enum_dispatch::enum_dispatch;
 
 use crate::{
+    fd::FileDescriptor,
     fs::tar::{TarEntiresIterator, TarEntry},
     io::{self, IoInterface},
-    limine_requests,
+    limine_requests, scheduler,
 };
 use vfs::{VfsDirectory, VfsFile};
 
 mod data_handle;
 mod error;
+mod file;
 pub mod tar;
 mod vfs;
+
+use file::*;
 
 static mut VFS_ROOT: Option<vfs::VfsRoot> = None;
 
@@ -70,6 +76,24 @@ pub fn init_vfs() {
     root.lsdir().unwrap();
 
     unsafe { VFS_ROOT = Some(root) };
+}
+
+pub fn open(path: &str, options: OpenOptions) -> io::Result<FileDescriptor> {
+    let root = unsafe { VFS_ROOT.as_ref().expect("VFS not initialized") };
+    let interface = root.open(path, options)?;
+    scheduler::add_io_interface(interface)
+}
+
+pub fn lsdir() -> io::Result<()> {
+    unsafe { VFS_ROOT.as_ref().expect("VFS not initialized").lsdir() }
+}
+
+pub fn mkdir(path: &str) -> io::Result<()> {
+    unsafe { VFS_ROOT.as_mut().expect("VFS not initialized").mkdir(path) }
+}
+
+pub fn mount(path: &str, region: &'static [u8]) -> io::Result<()> {
+    unsafe { VFS_ROOT.as_mut().expect("VFS not initialized").mount(path, region) }
 }
 
 pub enum SeekFrom {
