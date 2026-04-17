@@ -4,7 +4,8 @@ use crate::memory::paging::{PageTable, VirtualAddress};
 use crate::*;
 
 /// The entry point of user tasks
-pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x20000000000_u64);
+pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x400000_u64);
+pub const USER_STACK_TOP: VirtualAddress = VirtualAddress(0x0000_7FFF_FFFF_F000_u64);
 
 /// The kernel's page table. This is used for mapping the kernel's virtual address space to
 /// physical memory.

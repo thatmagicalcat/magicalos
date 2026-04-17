@@ -75,11 +75,27 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
         };
     }
 
-    // 64 KiB
-    const MAX_STACK_SIZE: usize = 64 * 1024;
-    const USER_STACK_TOP: usize = USER_ENTRY.0 as usize + 0x400000;
+    // 8 MiB
+    const MAX_STACK_SIZE: u64 = 8 * 1024 * 1024;
+    const RED_ZONE: u64 = 128; // bytes
 
-    if (USER_STACK_TOP - MAX_STACK_SIZE..USER_STACK_TOP).contains(&virtual_addr) {
+    let user_rsp = stack_frame.rsp as u64;
+
+    // check if the virtual_addr falls in the 8 MiB range
+    let is_in_stack_range =
+        (USER_STACK_TOP.0 - MAX_STACK_SIZE..USER_STACK_TOP.0).contains(&(virtual_addr as _));
+
+    // we reserve memory by subtracting rsp by a certain amount, so if the rsp was subtracted
+    // before and then we're accessing that memory, it is only valid if the virtual_addr is >= rsp
+    // but if this condition fails, that means the user is trying to access memory that is not even
+    // reserved!
+    // TODO: kill that process!
+
+    let is_valid_stack_growth = virtual_addr as u64 >= (user_rsp.saturating_sub(RED_ZONE));
+
+    if is_in_stack_range && is_valid_stack_growth {
+        // Safe to demand page!
+
         virtual_addr = utils::align_down(virtual_addr, memory::PAGE_SIZE) as _;
         let physical_frame = memory::allocate_frame().expect("oom");
         let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;

@@ -2,7 +2,7 @@ use core::arch::{asm, naked_asm};
 
 use raw_cpuid::CpuId;
 
-use crate::{kernel::USER_ENTRY, syscall::SYSCALL_TABLE, utils};
+use crate::{kernel::{USER_STACK_TOP}, syscall::SYSCALL_TABLE, utils};
 
 pub fn init() {
     let cpuid = CpuId::new();
@@ -21,39 +21,20 @@ pub fn init() {
     }
 }
 
-pub unsafe fn jump_to_user_fn(entry_point: extern "C" fn()) -> ! {
+pub unsafe fn jump_to_user_fn(entry_point: usize) -> ! {
     let ds = 0x1b_usize; // GDT Index 3, Ring 3
     let cs = 0x23_usize; // GDT Index 4, Ring 3
 
     unsafe {
         __jump_to_user_land(
             ds,
-            USER_ENTRY.0 as usize + 0x400000_usize,
+            // an arbitrary user stack, which is used by pagefault_handler for demand paging!
+            USER_STACK_TOP.0 as _,
             cs,
-            USER_ENTRY.0 as usize | entry_point as usize & 0xFFFusize,
+            entry_point,
+            // USER_ENTRY.0 as usize | entry_point & 0xFFFusize,
         )
     }
-
-    // unsafe {
-    //     asm! {
-    //         "push {0}",
-    //         "push {1}",
-    //         "add qword ptr [rsp], 16",
-    //         "pushf",
-    //         "push {2}",
-    //         "push {3}",
-    //         "iretq",
-    //         in(reg) ds,
-    //         in(reg) stack_ptr,
-    //         in(reg) cs,
-    //         in(reg) entry_point as usize,
-    //         options(nostack)
-    //     }
-    // }
-    //
-    // loop {
-    //     unsafe { asm!("hlt") }
-    // }
 }
 
 #[unsafe(naked)]
@@ -94,11 +75,11 @@ pub(crate) extern "C" fn syscall_handler() {
         "mov rcx, r10",
         "sti",
         "call [{sys_table}+8*rax]",
-        // restore context
         "cli",
         // switch to user stack
         "pop rcx",
         "mov rsp, rcx",
+        // restore context
         "swapgs",
         "pop r11",
         "pop r10",
