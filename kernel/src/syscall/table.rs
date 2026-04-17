@@ -1,13 +1,14 @@
-use crate::syscall::{exit::sys_exit, write::sys_write};
+use crate::syscall::{exit::sys_exit, write::sys_write, mmap::sys_mmap};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(usize)]
 pub enum Syscall {
     Exit = 0,
     Write = 1,
+    MemMap = 2,
 
     /// Not a valid syscall
-    NumSyscalls = 2,
+    NumSyscalls,
 }
 
 #[repr(align(64))]
@@ -19,7 +20,7 @@ pub(crate) struct SyscallTable {
 impl SyscallTable {
     pub const fn new() -> Self {
         Self {
-            handle: [sys_exit as _, sys_write as _],
+            handle: [sys_exit as _, sys_write as _, sys_mmap as _],
         }
     }
 }
