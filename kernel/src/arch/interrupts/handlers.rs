@@ -3,7 +3,8 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
-    kernel::USER_ENTRY,
+    kernel::{USER_ENTRY, USER_STACK_TOP},
+    limine_requests,
     memory::{
         self,
         paging::{PageTable, PageTableEntryFlags, VirtualAddress},
@@ -23,6 +24,17 @@ pub struct ExceptionStackFrame {
     ss: usize,
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub struct ExceptionStackFrameWithError {
+    error_code: usize,
+    rip: usize,
+    cs: usize,
+    rflags: usize,
+    rsp: usize,
+    ss: usize,
+}
+
 pub extern "C" fn breakpoint_handler(stack_frame: &ExceptionStackFrame) {
     log::warn!(
         "\nEXCEPTION: BREAKPOINT at {:#X}\n{:#?}",
@@ -31,7 +43,8 @@ pub extern "C" fn breakpoint_handler(stack_frame: &ExceptionStackFrame) {
     );
 }
 
-pub extern "C" fn stack_segment_fault(stack_frame: &ExceptionStackFrame, error_code: u64) {
+pub extern "C" fn stack_segment_fault(stack_frame: &ExceptionStackFrameWithError) {
+    let error_code = stack_frame.error_code;
     log::warn!(
         "\nEXCEPTION: STACK-SEGMENT FAULT at {:#X}\nError code: {error_code}\n{:#?}",
         stack_frame.rip,
@@ -50,8 +63,9 @@ pub extern "C" fn divide_by_zero_handler(stack_frame: &ExceptionStackFrame) {
     panic!("\nEXCEPTION: DIVIDE BY ZERO\n{stack_frame:#?}");
 }
 
-pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_code: u64) {
+pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError) {
     let mut virtual_addr: usize;
+    let error_code = stack_frame.error_code;
 
     unsafe {
         asm! {
@@ -94,7 +108,8 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrame, error_co
     );
 }
 
-pub extern "C" fn double_fault_handler(stack_frame: &ExceptionStackFrame, error_code: u64) -> ! {
+pub extern "C" fn double_fault_handler(stack_frame: &ExceptionStackFrameWithError) -> ! {
+    let error_code = stack_frame.error_code;
     panic!(
         "\nEXCEPTION: DOUBLE FAULT\nError code: {error_code}\n{:#?}",
         stack_frame
@@ -115,7 +130,8 @@ pub extern "C" fn general_protection_fault_handler(
     );
 }
 
-pub extern "C" fn invalid_tss_handler(stack_frame: &ExceptionStackFrame, error_code: u64) {
+pub extern "C" fn invalid_tss_handler(stack_frame: &ExceptionStackFrameWithError) {
+    let error_code = stack_frame.error_code;
     let is_external = error_code & 1 != 0;
     let table = (error_code >> 1) & 0b11;
     let index = (error_code >> 3) & 0x1FFF;

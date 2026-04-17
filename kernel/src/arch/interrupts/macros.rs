@@ -92,20 +92,24 @@ macro_rules! exception_handler_with_error_code {
         #[unsafe(naked)]
         extern "C" fn wrapper() -> ! {
             naked_asm! {
-                "pop rsi",      // error code
-
                 $crate::push_scratch!(),
 
                 "lea rdi, [rsp + 72]", // 9 registers pushed
+
+                "sub rsp, 8", // stack alignment
                 "call {handler}",
+                "add rsp, 8", // undo alignment
 
                 $crate::pop_scratch!(),
+
+                "add rsp, 8", // discard error code
 
                 "iretq",
 
                 handler = sym $name,
             }
         }
+
         wrapper
     }};
 }
