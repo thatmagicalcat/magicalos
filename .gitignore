@@ -3,7 +3,8 @@ kernel/target
 build
 isodir
 *.iso
-sysroot
 mlibc
-scripts
 toolchain
+sysroot
+patches
+scripts
