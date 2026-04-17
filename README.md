@@ -4,7 +4,7 @@
   
   ![Rust Nightly](https://img.shields.io/badge/rust-nightly-orange.svg)
   ![Architecture](https://img.shields.io/badge/arch-x86__64-blue.svg)
-  ![LOC](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/thatmagicalcat/thatmagicalos/badge)
+  ![LOC](https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/thatmagicalcat/magicalos/badge)
 </div>
 
 ---
