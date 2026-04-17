@@ -189,8 +189,8 @@ impl Task {
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
-            vmspace: VmSpace::new(),
             fd_map,
+            vmspace: VmSpace::new(),
         }
     }
 

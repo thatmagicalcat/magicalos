@@ -4,7 +4,6 @@ use alloc::{rc::Rc, sync::Arc};
 use core::cell::{RefCell, UnsafeCell};
 
 use crate::{
-    arch::interrupts,
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
@@ -58,10 +57,17 @@ pub(crate) fn add_io_interface(interface: Arc<dyn IoInterface>) -> io::Result<Fi
 }
 
 pub(crate) fn remove_io_interface(fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
-    interrupts::without_interrupts(|| unsafe {
-        (*SCHEDULER.as_ref().unwrap().get()).remove_io_interface(fd)
-    })
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).remove_io_interface(fd) }
 }
+
+// pub fn allocate_vmm(
+//     layout: core::alloc::Layout,
+// ) -> Result<crate::memory::paging::VirtualAddress, &'static str> {
+//     unsafe { (*SCHEDULER.as_ref().unwrap().get()).allocate_vmm(layout) }
+// }
+// pub fn deallocate_vmm(address: usize, size: usize) {
+//     unsafe { (*SCHEDULER.as_ref().unwrap().get()).deallocate_vmm(address, size) };
+// }
 
 pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };

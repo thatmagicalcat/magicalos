@@ -2,6 +2,7 @@ mod table;
 
 mod exit;
 mod write;
+mod mmap;
 
 pub use table::*;
 

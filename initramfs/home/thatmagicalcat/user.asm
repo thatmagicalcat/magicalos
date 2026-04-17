@@ -1,4 +1,3 @@
-; user.asm
 bits 64
 
 %define SYS_WRITE 1
@@ -6,7 +5,7 @@ bits 64
 %define STDOUT 1
 
 section .rodata
-    msg db "Hello from the ELF userspace process!", 0xD, 0xA ; 0xD - \r, 0xA - \n
+    msg db "Hello from the ELF userspace process!", 0xD, 0xA ; \r\n
     msg_len equ $ - msg
 
 section .text
@@ -21,6 +20,3 @@ _start:
 
     mov rax, SYS_EXIT
     syscall
-
-.halt:
-    jmp .halt

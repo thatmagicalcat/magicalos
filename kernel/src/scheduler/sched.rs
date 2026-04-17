@@ -13,8 +13,12 @@ use crate::{
     arch::interrupts,
     fd::FileDescriptor,
     io::{self, IoInterface},
-    memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::task::{NUM_PRIORITIES, TaskStatus}, utils,
+    memory::{
+        self,
+        paging::{PhysicalAddress, VirtualAddress},
+    },
+    scheduler::task::{NUM_PRIORITIES, TaskStatus},
+    utils,
 };
 
 use super::task::{PriorityTaskQueue, Task, TaskId, TaskPriority};
@@ -90,6 +94,19 @@ impl Scheduler {
         })
     }
 
+    // pub(crate) fn insert_vma_entry(
+    //     &self,
+    //     layout: core::alloc::Layout,
+    // ) -> Result<VirtualAddress, &'static str> {
+    //     interrupts::without_interrupts(|| self.current_task.borrow_mut().vmm.allocate(layout))
+    // }
+    //
+    // pub(crate) fn deallocate_vmm(&self, address: usize, size: usize) {
+    //     interrupts::without_interrupts(|| {
+    //         self.current_task.borrow_mut().vmm.deallocate(address, size)
+    //     })
+    // }
+
     pub(crate) fn get_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
         interrupts::without_interrupts(|| {
             self.current_task
@@ -102,7 +119,7 @@ impl Scheduler {
     }
 
     pub(crate) fn add_io_interface(
-        &mut self,
+        &self,
         interface: Arc<dyn IoInterface>,
     ) -> io::Result<FileDescriptor> {
         // find a free file descriptor
@@ -118,11 +135,13 @@ impl Scheduler {
     }
 
     pub fn remove_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
-        self.current_task
-            .borrow_mut()
-            .fd_map
-            .remove(&fd)
-            .ok_or(io::Error::BadFileDescriptor)
+        interrupts::without_interrupts(|| {
+            self.current_task
+                .borrow_mut()
+                .fd_map
+                .remove(&fd)
+                .ok_or(io::Error::BadFileDescriptor)
+        })
     }
 
     pub fn exit(&mut self) -> ! {

@@ -1,4 +1,8 @@
+use core::alloc::Layout;
+
 use alloc::collections::BTreeMap;
+
+use crate::{kernel::USER_STACK_BOTTOM, utils};
 
 pub struct VmSpace {
     /// key = start address
@@ -8,16 +12,12 @@ pub struct VmSpace {
 #[derive(Debug, Clone, Copy)]
 pub struct Vma {
     end: usize,
-    flags: Flags,
+    ty: MappingType,
 }
 
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy)]
-    pub struct Flags: u8 {
-        const READ = 1 << 0;
-        const WRITE = 1 << 1;
-        const EXEC = 1 << 2;
-    }
+#[derive(Debug, Clone, Copy)]
+pub enum MappingType {
+    Anonymous,
 }
 
 impl VmSpace {
@@ -27,7 +27,7 @@ impl VmSpace {
         }
     }
 
-    pub fn insert(&mut self, start: usize, end: usize, flags: Flags) -> Result<(), ()> {
+    pub fn insert(&mut self, start: usize, end: usize, ty: MappingType) -> Result<(), ()> {
         assert!(start < end);
 
         // check previous vma for overlap
@@ -44,8 +44,35 @@ impl VmSpace {
             return Err(()); // overlap
         }
 
-        self.map.insert(start, Vma { end, flags });
+        self.map.insert(start, Vma { end, ty });
         Ok(())
+    }
+
+    pub fn find_free_region(&self, layout: Layout) -> Option<usize> {
+        // 1 GiB
+        let mut current_addr = 0x4000_0000;
+
+        for (&start, vma) in &self.map {
+            let aligned_addr = utils::align_up(current_addr, layout.align());
+
+            // Free memory before the current VMA
+            if start >= aligned_addr && start - aligned_addr >= layout.size() {
+                return Some(aligned_addr);
+            }
+
+            current_addr = current_addr.max(vma.end);
+        }
+
+        let aligned_addr = utils::align_up(current_addr, layout.align());
+        let max_addr = USER_STACK_BOTTOM.0 as usize;
+
+        if max_addr >= aligned_addr && max_addr - aligned_addr >= layout.size() {
+            return Some(aligned_addr);
+        } 
+
+        log::error!("OOM: no suitable free region found for {:?}", layout);
+
+        None
     }
 
     pub fn find(&self, addr: usize) -> Option<(usize, &Vma)> {
