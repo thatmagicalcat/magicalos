@@ -13,6 +13,7 @@ pub(crate) enum Error {
     NotADirectory = errno::ENOTDIR as _,
     InvalidFsPath = errno::ENOINVPATH as _,
     TooManyOpenFiles = errno::EMFILE as _,
+    WriteAllEof = errno::EWRITEALLEOF as _,
 }
 
 impl core::fmt::Display for Error {

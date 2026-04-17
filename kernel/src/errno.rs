@@ -21,3 +21,6 @@ pub const ENOINVPATH: i32 = 6;
 
 /// Too many open files
 pub const EMFILE: i32 = 7;
+
+/// Write all but reached end of file
+pub const EWRITEALLEOF: i32 = 8;
