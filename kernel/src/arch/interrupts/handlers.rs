@@ -81,29 +81,38 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
 
     if (USER_STACK_TOP - MAX_STACK_SIZE..USER_STACK_TOP).contains(&virtual_addr) {
         virtual_addr = utils::align_down(virtual_addr, memory::PAGE_SIZE) as _;
-        let physical_addr = memory::allocate_frame().expect("oom");
+        let physical_frame = memory::allocate_frame().expect("oom");
+        let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;
 
         log::debug!(
             "Demand Paging: {virtual_addr:#X} -> {:#X}",
-            physical_addr.start_address()
+            physical_frame.start_address()
         );
 
         let mut active = PageTable::active();
-        active.mapper_mut().map(
+        active.mapper_mut().map_to(
             VirtualAddress(virtual_addr as _),
+            physical_frame,
             PageTableEntryFlags::WRITABLE
                 | PageTableEntryFlags::USER_ACCESSIBLE
                 | PageTableEntryFlags::NO_EXECUTE,
             &mut *memory::lock_global_frame_allocator(),
         );
 
-        unsafe { core::ptr::write_bytes(virtual_addr as *mut u8, 0, crate::memory::PAGE_SIZE) };
+        unsafe {
+            core::ptr::write_bytes(
+                (physical_frame.start_address() + hhdm_offset) as *mut u8,
+                0,
+                crate::memory::PAGE_SIZE,
+            )
+        };
+
         return;
     }
 
     panic!(
         "\nEXCEPTION: PAGE FAULT while accessing {virtual_addr:#x}\nError code: {:?}\n{:#?}",
-        unsafe { PageFaultErrorCode::from_bits(error_code).unwrap_unchecked() },
+        unsafe { PageFaultErrorCode::from_bits(error_code as _).unwrap_unchecked() },
         stack_frame
     );
 }
