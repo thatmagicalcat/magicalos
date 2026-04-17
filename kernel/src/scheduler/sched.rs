@@ -14,7 +14,7 @@ use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::task::{NUM_PRIORITIES, TaskStatus},
+    scheduler::task::{NUM_PRIORITIES, TaskStatus}, utils,
 };
 
 use super::task::{PriorityTaskQueue, Task, TaskId, TaskPriority};
@@ -115,6 +115,14 @@ impl Scheduler {
         });
 
         Ok(fd)
+    }
+
+    pub fn remove_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
+        self.current_task
+            .borrow_mut()
+            .fd_map
+            .remove(&fd)
+            .ok_or(io::Error::BadFileDescriptor)
     }
 
     pub fn exit(&mut self) -> ! {
@@ -309,6 +317,7 @@ pub(crate) unsafe extern "C" fn switch(_old_stack: *mut usize, _new_stack: usize
 }
 
 fn set_current_kernel_stack() {
+    utils::write_cr3(super::get_root_page_table().0 as _);
     let current_stack = super::get_current_interrupt_stack();
     interrupts::set_kernel_stack(*current_stack);
 }

@@ -96,6 +96,5 @@ impl Tss {
 }
 
 pub fn set_kernel_stack(stack: u64) {
-    utils::write_cr3(scheduler::get_root_page_table().0 as _);
     TSS.lock().privilege_stack_table[0] = stack;
 }
