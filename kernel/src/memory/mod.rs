@@ -7,10 +7,10 @@ mod bitmapframealloc;
 pub mod heap;
 pub mod paging;
 mod tinyalloc;
-mod vmm;
+pub mod vmm;
 mod vmspace;
 
-pub use vmm::{VMM, init_vmm};
+pub use vmm::{KERNEL_VMM, init_vmm};
 pub use vmspace::*;
 
 pub const PAGE_SIZE: usize = 1024 * 4;

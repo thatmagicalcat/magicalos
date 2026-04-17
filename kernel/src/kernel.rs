@@ -6,6 +6,8 @@ use crate::*;
 /// The entry point of user tasks
 pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x400000_u64);
 pub const USER_STACK_TOP: VirtualAddress = VirtualAddress(0x0000_7FFF_FFFF_F000_u64);
+pub const USER_STACK_BOTTOM: VirtualAddress = VirtualAddress(USER_STACK_TOP.0 - MAX_USER_STACK_SIZE);
+pub const MAX_USER_STACK_SIZE: u64 = 8 * 1024 * 1024; // 8 MiB
 
 /// The kernel's page table. This is used for mapping the kernel's virtual address space to
 /// physical memory.

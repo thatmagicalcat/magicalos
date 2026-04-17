@@ -5,15 +5,15 @@ use spin::Mutex;
 
 use crate::{memory::paging::VirtualAddress, utils};
 
-pub static VMM: Mutex<Vmm> = Mutex::new(Vmm::new());
+pub static KERNEL_VMM: Mutex<Vmm> = Mutex::new(Vmm::new());
 
-pub const VMM_ADDR_START: usize = 0xFFFF900000000000;
-pub const VMM_SIZE: usize = 0x1000000000; // 64 GiB
+pub const KERNEL_VMM_ADDR_START: usize = 0xFFFF900000000000;
+pub const KERNEL_VMM_SIZE: usize = 0x1000000000; // 64 GiB
 
 pub fn init_vmm() {
-    VMM.lock().entries.push_back(VmmEntry {
-        start: VMM_ADDR_START,
-        end: VMM_ADDR_START + VMM_SIZE,
+    KERNEL_VMM.lock().entries.push_back(VmmEntry {
+        start: KERNEL_VMM_ADDR_START,
+        end: KERNEL_VMM_ADDR_START + KERNEL_VMM_SIZE,
     });
 }
 

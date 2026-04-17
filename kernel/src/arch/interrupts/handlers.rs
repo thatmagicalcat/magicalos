@@ -3,7 +3,7 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
-    kernel::{USER_ENTRY, USER_STACK_TOP},
+    kernel::{USER_ENTRY, USER_STACK_BOTTOM, USER_STACK_TOP},
     limine_requests,
     memory::{
         self,
@@ -75,15 +75,13 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
         };
     }
 
-    // 8 MiB
-    const MAX_STACK_SIZE: u64 = 8 * 1024 * 1024;
     const RED_ZONE: u64 = 128; // bytes
 
     let user_rsp = stack_frame.rsp as u64;
 
     // check if the virtual_addr falls in the 8 MiB range
     let is_in_stack_range =
-        (USER_STACK_TOP.0 - MAX_STACK_SIZE..USER_STACK_TOP.0).contains(&(virtual_addr as _));
+        (USER_STACK_BOTTOM.0..USER_STACK_TOP.0).contains(&(virtual_addr as _));
 
     // we reserve memory by subtracting rsp by a certain amount, so if the rsp was subtracted
     // before and then we're accessing that memory, it is only valid if the virtual_addr is >= rsp

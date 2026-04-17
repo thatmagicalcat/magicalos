@@ -48,7 +48,11 @@ const MIN_LOG_LEVEL: log::LevelFilter = {
 pub extern "C" fn kmain() -> ! {
     kernel::init();
 
-    scheduler::spawn(create_user_process, NORMAL_PRIORITY).unwrap();
+    extern "C" fn helper() {
+        load_elf(c"/home/thatmagicalcat/user.elf".as_ptr());
+    }
+
+    scheduler::spawn(helper, NORMAL_PRIORITY).unwrap();
     scheduler::reschedule();
 
     log::error!("Scheduler empty, main kernel thread entering idle loop");
@@ -58,13 +62,12 @@ pub extern "C" fn kmain() -> ! {
     }
 }
 
-extern "C" fn create_user_process() {
+extern "C" fn load_elf(path: *const i8) {
     utils::write_cr3(*memory::paging::user::create_page_table() as _);
-    // memory::paging::user::map_user_entry(user_process);
 
-    let path = "/home/thatmagicalcat/user.elf";
     let mut elf_data = Vec::new();
-    let mut file = fs::File::open(path).expect("Failed to open user ELF file");
+    let mut file = fs::File::open(unsafe { core::ffi::CStr::from_ptr(path).to_str().unwrap() })
+        .expect("Failed to open user ELF file");
     file.read_to_end(&mut elf_data)
         .expect("Failed to read user ELF file");
 
@@ -84,6 +87,8 @@ extern "C" fn create_user_process() {
     let ph_off = header.program_header_table_offset as usize;
     let ph_num = header.program_header_table_num_entires as usize;
     let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;
+
+    let mut highest_addr_page = 0;
 
     // To get the Program Headers:
     for i in 0..ph_num {
@@ -105,6 +110,8 @@ extern "C" fn create_user_process() {
         let end_page = utils::align_up(vaddr as usize + mem_size, memory::PAGE_SIZE);
         let pages = (end_page - start_page) / memory::PAGE_SIZE;
 
+        highest_addr_page = highest_addr_page.max(end_page);
+
         let mut remaining_file_size = file_size;
         let mut current_file_offset = file_offset;
 
@@ -112,14 +119,12 @@ extern "C" fn create_user_process() {
             let current_vpage_addr = (start_page + (i * memory::PAGE_SIZE)) as u64;
             let frame = memory::allocate_frame().expect("OOM Loading ELF segment");
 
-            PageTable::active()
-                .mapper_mut()
-                .map_to(
-                    VirtualAddress(current_vpage_addr),
-                    frame,
-                    PageTableEntryFlags::USER_ACCESSIBLE | PageTableEntryFlags::WRITABLE,
-                    &mut *memory::lock_global_frame_allocator(),
-                );
+            PageTable::active().mapper_mut().map_to(
+                VirtualAddress(current_vpage_addr),
+                frame,
+                PageTableEntryFlags::USER_ACCESSIBLE | PageTableEntryFlags::WRITABLE,
+                &mut *memory::lock_global_frame_allocator(),
+            );
 
             let dest_slice = unsafe {
                 core::slice::from_raw_parts_mut(
@@ -129,6 +134,13 @@ extern "C" fn create_user_process() {
             };
 
             dest_slice.fill(0);
+
+            // let's say the elf wants a segment to be loaded at 0x400010, but pages are
+            // strictly 4 KiB (0x1000) aligned, the kernel must allocate the page starting
+            // at 0x400000, therefore, the very first page cannot start copying data at the
+            // very beginning of the page, in the following condition, we check if the page
+            // is the first one or not, if it is the first one, than we calculate the
+            // page offset, this offset is not required for the next pages
 
             let page_offset = if i == 0 {
                 vaddr as usize % memory::PAGE_SIZE

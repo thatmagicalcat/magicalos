@@ -17,7 +17,7 @@ pub fn init() {
         cr4 |= 1 << 16;
         utils::write_cr4(cr4);
     } else {
-        panic!("ThatMagicalOS requires the CPU feature FSGSBASE");
+        panic!("MagicalOS requires the CPU feature FSGSBASE");
     }
 }
 

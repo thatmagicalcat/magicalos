@@ -17,7 +17,7 @@ impl IoInterface for GenericStdout {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
         if log::log_enabled!(log::Level::Debug) {
             let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
-            log::debug!("write(generic_stdout): {s}");
+            log::debug!("write(generic_stdout): {}", s.trim_end_matches(['\n', '\r']));
             core::mem::forget(s);
         }
 
