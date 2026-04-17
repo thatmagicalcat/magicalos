@@ -216,4 +216,11 @@ impl DataHandle {
             DataHandle::Static(data) => DataHandle::Static(data.get_handle(flags)),
         }
     }
+
+    pub fn seek(&self, seek: SeekFrom) -> io::Result<usize> {
+        match self {
+            DataHandle::Dynamic(data) => data.seek(seek),
+            DataHandle::Static(data) => data.seek(seek),
+        }
+    }
 }

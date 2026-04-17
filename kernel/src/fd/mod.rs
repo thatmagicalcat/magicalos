@@ -17,3 +17,13 @@ pub(crate) fn write(fd: FileDescriptor, buf: &[u8]) -> io::Result<usize> {
 
     obj.write(buf)
 }
+
+pub(crate) fn read(fd: i32, buf: &mut [u8]) -> Result<usize, io::Error> {
+    let obj = scheduler::get_io_interface(fd)?;
+
+    if buf.is_empty() {
+        return Ok(0);
+    }
+
+    obj.read(buf)
+}

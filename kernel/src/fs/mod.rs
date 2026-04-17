@@ -18,7 +18,7 @@ mod file;
 pub mod tar;
 mod vfs;
 
-use file::*;
+pub use file::*;
 
 static mut VFS_ROOT: Option<vfs::VfsRoot> = None;
 

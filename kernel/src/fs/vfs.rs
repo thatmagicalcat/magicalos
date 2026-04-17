@@ -282,4 +282,8 @@ impl IoInterface for VfsFile {
             _ => Err(io::Error::BadFileDescriptor),
         }
     }
+
+    fn seek(&self, offset: super::SeekFrom) -> io::Result<usize> {
+        self.data.seek(offset)
+    }
 }
