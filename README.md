@@ -33,7 +33,7 @@ good question... even idk, but here's the progress so far xD
   - Global heap allocator which is a LinkedList Allocator (giving access to Rust's `alloc` crate, e.g. `Box`, `Arc`, `Vec`).
 - **Hardware Integration**:
   - **APIC & IOAPIC**
-- **Asynchronous Execution**: Includes a simple `async/await` task executor! The PS/2 keyboard driver utilizes `crossbeam-queue` to handle keypresses asynchronously.
+- **Asynchronous Execution**: A simple asynchronous task executor.
 - **Preemptive Multitasking**: OS Threads and a simple Robin Round Scheduler.
 - **Synchronization Primitives**: Custom scheduler-aware Mutex and fair spinlock implementation.
 - **Display & Logging**:
@@ -43,6 +43,7 @@ good question... even idk, but here's the progress so far xD
 - **Userspace and Syscalls**: A simple syscall interface with a few implemented syscalls
 - **File system**:
   - In memory Virtual File System (VFS)
+- **ELF Loading**: The kernel can load and run ELF binaries, but still there is a lot of work that has to be done.
 
 ## Getting Started
 
@@ -61,39 +62,27 @@ You need a Linux environment (or WSL2) with the following tools installed:
 
 ### Building and Running
 
-Running the OS is completely automated via Cargo thanks to `.cargo/config.toml` and our custom `run.sh` script!
-
 Just clone the repository and run:
 
 ```bash
-RUST_LOG=info cargo run --release
+cargo x r
 ```
 
-This command will:
-1. Compile the kernel for the custom `arch/x86_64.json` target.
-2. Build a `magical.iso` using `grub-mkrescue`.
-3. Launch QEMU with 2GB of RAM, attaching serial output directly to your current terminal.
-
-## Roadmap (ToDos)
+## TODOs:
 
 I'm constantly trying to add magic, here's the rough roadmap of features I want to implement:
 
 - [x] **Phase 1: Hardware Interrupts** (VGA, APIC, IOAPIC, Keyboard async tasks, Timer)
-- [ ] **Phase 2: Multitasking** (Context switching, Scheduler, Kernel threads)
-    - [x] Implement an asynchronous task executor to run multiple tasks concurrently.
-    - [x] Implement OS Threads and a simple executor.
-    - [ ] Add support for user-space processes and context switching between them.
-- [ ] **Phase 3: Storage** (PCI enumeration, Block devices, VFS, FAT32)
-    - [x] Virtual File System (VFS) layer
-    - [x] Implement PCI enumeration to detect storage devices.
-    - [ ] Add support for a simple filesystem like FAT32 to read/write files from disk.
-- [ ] **Phase 4: User Space** (Syscalls, Processes, ELF loader)
-    - [x] System calls
-    - [x] Userspace processes with memory isolation and context switching
-    - [ ] Implement an ELF loader to run user-space applications.
+- [x] **Phase 2: Multitasking** (Context switching, Scheduler, Kernel threads)
+- [x] **Phase 3: Storage** (VFS)
+- [x] **Phase 4: User Space** (Syscalls, Processes, ELF loader)
 - [ ] **Phase 5: libc and Userland** (C library, Shell, Basic utilities)
     - [ ] Port mlibc
     - [ ] Port bash
+
+Misc:
+- [ ] Make async runtime work with task scheduler
+- [ ] fix ELF loading
 
 ## Acknowledgements
 
