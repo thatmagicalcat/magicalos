@@ -1,6 +1,6 @@
 <div align="center">
-  <h1>ThatMagicalOS</h1>
-  <p>A simple, modern, 64-bit operating system kernel crafted in Rust.</p>
+  <h1>MagicalOS</h1>
+  <p>A simple, modern, 64-bit operating system kernel crafted in rust 🦀</p>
   
   ![Rust Nightly](https://img.shields.io/badge/rust-nightly-orange.svg)
   ![Architecture](https://img.shields.io/badge/arch-x86__64-blue.svg)
@@ -9,21 +9,13 @@
 
 ---
 
-**ThatMagicalOS** is a from-scratch operating system kernel built in Rust (with a little bit of x86_64 assembly). It leverages Rust's safety and modern tooling to build foundational OS primitives. 
+**MagicalOS** is a from-scratch operating system kernel built in Rust (with a little bit of x86_64 assembly). It leverages Rust's safety and modern tooling to build foundational OS primitives. 
 
 This project was built for the sake of learning how operating systems work under the hood and having fun bringing a machine to life!
 
-## Screenshots
-
-#### Booting up
-<img src="./imgs/booting-up.png" width="500" alt="Boot Screen"/>
-
-#### Keyboard
-<img src="./imgs/keyboard.png" width="500" alt="Keyboard"/>
-
 ## Current Features
 
-What makes ThatMagicalOS magical?
+What makes MagicalOS magical?
 good question... even idk, but here's the progress so far xD
 
 - ~~**Multiboot2 Booting**: Compatible with multiboot2, booted via an ISO image.~~
