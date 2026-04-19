@@ -1,18 +1,23 @@
 use color_eyre::Result;
 use std::path::{Path, PathBuf};
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 use xtasks::{is_stale, project_root};
 
 use crate::kernel;
 
-pub fn setup(sh: &Shell) -> Result<()> {
+pub fn setup(sh: &Shell, quiet: bool) -> Result<()> {
     let project_root = project_root();
     let kernel_bin = project_root.join("target/x86_64/release/kernel");
-    _ = setup_for_kernel(sh, &kernel_bin, "magical.iso")?;
+    _ = setup_for_kernel(sh, &kernel_bin, "magical.iso", quiet)?;
     Ok(())
 }
 
-pub fn setup_for_kernel(sh: &Shell, kernel_bin: &Path, iso_name: &str) -> Result<PathBuf> {
+pub fn setup_for_kernel(
+    sh: &Shell,
+    kernel_bin: &Path,
+    iso_name: &str,
+    quiet: bool,
+) -> Result<PathBuf> {
     let project_root = project_root();
 
     // inputs
@@ -82,18 +87,29 @@ pub fn setup_for_kernel(sh: &Shell, kernel_bin: &Path, iso_name: &str) -> Result
 
     if is_stale(&iso_inputs, &[&iso_output])? {
         println!("[xtask]: Generating ISO...");
-        cmd!(
+        let mut c = cmd!(
             sh,
             "xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin 
                   -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus 
                   -apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin 
                   --efi-boot-part --efi-boot-image --protective-msdos-label 
                   {iso_root} -o {iso_output}"
-        )
-        .run()?;
+        );
+
+        if quiet {
+            c = c.ignore_stdout().ignore_stderr();
+        }
+
+        c.run()?;
 
         let limine_bin = limine.join("limine");
-        cmd!(sh, "{limine_bin} bios-install {iso_output}").run()?;
+        let mut c = cmd!(sh, "{limine_bin} bios-install {iso_output}");
+
+        if quiet {
+            c = c.ignore_stdout().ignore_stderr();
+        }
+
+        c.run()?;
     }
 
     Ok(iso_output)

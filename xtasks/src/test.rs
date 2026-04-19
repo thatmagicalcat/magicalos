@@ -6,7 +6,7 @@ use xtasks::project_root;
 
 use crate::buildenv;
 
-pub fn run(sh: &Shell) -> Result<()> {
+pub fn run(sh: &Shell, quiet: bool) -> Result<()> {
     println!("[xtask]: Building kernel test binary...");
 
     let root = project_root();
@@ -24,7 +24,7 @@ pub fn run(sh: &Shell) -> Result<()> {
     }
 
     let test_bin = discover_test_binary(&test_target)?;
-    let iso_path = buildenv::setup_for_kernel(sh, &test_bin, "magical-test.iso")?;
+    let iso_path = buildenv::setup_for_kernel(sh, &test_bin, "magical-test.iso", quiet)?;
 
     println!("[xtask]: Running kernel tests in QEMU...");
 

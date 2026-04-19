@@ -21,23 +21,24 @@ fn main() -> Result<()> {
         return Err(eyre!("Missing command"));
     };
 
+    let quiet = args.any(|arg| arg == "-q" || arg == "--quiet");
     let sh = Shell::new()?;
 
     match command.as_str() {
-        "k" | "kernel" => kernel::build(&sh)?,
-        "s" | "setup" => buildenv::setup(&sh)?,
+        "k" | "kernel" => kernel::build(&sh, quiet)?,
+        "s" | "setup" => buildenv::setup(&sh, quiet)?,
         "q" | "qemu" => qemu::run(&sh)?,
-        "t" | "test" => test::run(&sh)?,
-        "iso" => iso::create(&sh)?,
+        "t" | "test" => test::run(&sh, quiet)?,
+        "iso" => iso::create(&sh, quiet)?,
 
         "make" => {
-            kernel::build(&sh)?;
-            buildenv::setup(&sh)?;
+            kernel::build(&sh, quiet)?;
+            buildenv::setup(&sh, quiet)?;
         }
 
         "r" | "run" => {
-            kernel::build(&sh)?;
-            buildenv::setup(&sh)?;
+            kernel::build(&sh, quiet)?;
+            buildenv::setup(&sh, quiet)?;
             qemu::run(&sh)?;
         }
 
@@ -66,6 +67,8 @@ fn print_usage() {
     eprintln!("[xtask]:     run, r    - build & run the OS in QEMU");
     eprintln!("[xtask]:     qemu, q   - run the ISO in QEMU");
     eprintln!("[xtask]:     clean     - remove all the build artifacts");
+    eprintln!("[xtask]: Flag(s):");
+    eprintln!("[xtask]:     --quiet/q - supress build script messages");
 }
 
 fn clean(sh: &Shell) -> Result<()> {
