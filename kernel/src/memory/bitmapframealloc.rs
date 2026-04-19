@@ -178,3 +178,26 @@ impl FrameAllocator for BitmapFrameAllocator {
         self.mark_frame_free(frame_index);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::memory::{FrameAllocator, lock_global_frame_allocator};
+
+    #[test_case]
+    fn bitmap_frame_allocator_alloc_dealloc() {
+        let mut allocator = lock_global_frame_allocator();
+
+        let frame1 = allocator.allocate_frame();
+        let frame2 = allocator.allocate_frame();
+
+        assert!(frame1.is_some());
+        assert!(frame2.is_some());
+
+        assert!(allocator.allocated_frames >= 2);
+        assert!(allocator.is_frame_used(frame1.unwrap().0));
+        assert!(allocator.is_frame_used(frame2.unwrap().0));
+
+        allocator.deallocate_frame(frame1.unwrap());
+        allocator.deallocate_frame(frame2.unwrap());
+    }
+}

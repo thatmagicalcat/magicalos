@@ -131,3 +131,46 @@ impl Mapper {
         frame
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        kernel,
+        memory::{allocate_frame, lock_global_frame_allocator},
+    };
+
+    #[test_case]
+    fn virtual_to_physical_mapping_works() {
+        let virt = 0xdead_beef_u64.into();
+        let frame = allocate_frame().expect("out of memory");
+
+        let mapper = kernel::get_kernel_page_table().mapper_mut();
+
+        mapper.map_to(
+            virt,
+            frame,
+            super::PageTableEntryFlags::WRITABLE,
+            &mut *lock_global_frame_allocator(),
+        );
+
+        let phys = mapper.translate(virt).unwrap();
+
+        assert_eq!(phys.0, frame.start_address() as u64, "Translation failed");
+
+        // test read/write access to the mapped page
+        unsafe {
+            let ptr = virt.as_mut_ptr::<u64>();
+
+            core::ptr::write_volatile(ptr, 0x1234_5678_9abc_def0);
+            let value = core::ptr::read_volatile(ptr);
+
+            assert_eq!(
+                value, 0x1234_5678_9abc_def0,
+                "Read/write access to mapped page failed"
+            );
+        }
+
+        // // cleanup
+        mapper.unmap(virt);
+    }
+}

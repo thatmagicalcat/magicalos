@@ -81,3 +81,34 @@ unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
             .kfree(unsafe { NonNull::new_unchecked(ptr) }, layout);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn simple_allocation() {
+        let layout = Layout::from_size_align(100, 1).unwrap();
+        let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+        assert!(!ptr.is_null());
+        unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
+    }
+
+    #[test_case]
+    fn large_allocation() {
+        let layout = Layout::from_size_align(1000, 1).unwrap();
+        let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+        assert!(!ptr.is_null());
+        unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
+    }
+
+    #[test_case]
+    fn many_allocations() {
+        for i in 0..100 {
+            let layout = Layout::from_size_align(i * 10 + 1, 1).unwrap();
+            let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+            assert!(!ptr.is_null());
+            unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
+        }
+    }
+}
