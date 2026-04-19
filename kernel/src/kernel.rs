@@ -6,7 +6,8 @@ use crate::*;
 /// The entry point of user tasks
 pub const USER_ENTRY: VirtualAddress = VirtualAddress(0x400000_u64);
 pub const USER_STACK_TOP: VirtualAddress = VirtualAddress(0x0000_7FFF_FFFF_F000_u64);
-pub const USER_STACK_BOTTOM: VirtualAddress = VirtualAddress(USER_STACK_TOP.0 - MAX_USER_STACK_SIZE);
+pub const USER_STACK_BOTTOM: VirtualAddress =
+    VirtualAddress(USER_STACK_TOP.0 - MAX_USER_STACK_SIZE);
 pub const MAX_USER_STACK_SIZE: u64 = 8 * 1024 * 1024; // 8 MiB
 
 /// The kernel's page table. This is used for mapping the kernel's virtual address space to
@@ -104,6 +105,36 @@ pub fn init() {
 
     // start slapping lol!
     interrupts::enable_interrupts();
+}
+
+pub fn init_for_tests() {
+    init_logging();
+    log::info!("Initializing test kernel environment");
+
+    processor::init();
+
+    unsafe {
+        KERNEL_PAGE_TABLE = Some(PageTable::active());
+    }
+
+    gdt::init();
+    interrupts::init();
+
+    let memmap = unsafe {
+        let response = &*MEMMAP.response;
+        core::slice::from_raw_parts(response.entries, response.entry_count as usize)
+    };
+
+    log_memmap(memmap);
+    memory::init_global_frame_allocator(memmap);
+
+    let mut allocator = memory::lock_global_frame_allocator();
+    let kernel_page_table = get_kernel_page_table();
+
+    memory::heap::init(kernel_page_table.mapper_mut(), &mut *allocator);
+    memory::init_vmm();
+    syscall::init();
+    scheduler::init();
 }
 
 fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
