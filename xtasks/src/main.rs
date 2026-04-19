@@ -6,6 +6,7 @@ mod buildenv;
 mod iso;
 mod kernel;
 mod qemu;
+mod test;
 
 use xtasks::*;
 
@@ -26,13 +27,13 @@ fn main() -> Result<()> {
         "k" | "kernel" => kernel::build(&sh)?,
         "s" | "setup" => buildenv::setup(&sh)?,
         "q" | "qemu" => qemu::run(&sh)?,
+        "t" | "test" => test::run(&sh)?,
         "iso" => iso::create(&sh)?,
 
         "make" => {
             kernel::build(&sh)?;
             buildenv::setup(&sh)?;
         }
-
 
         "r" | "run" => {
             kernel::build(&sh)?;
@@ -61,6 +62,7 @@ fn print_usage() {
     eprintln!("[xtask]:     kernel, k - build kernel");
     eprintln!("[xtask]:     setup, s  - setup build environment");
     eprintln!("[xtask]:     iso       - build ISO image");
+    eprintln!("[xtask]:     test, t   - build and run kernel tests");
     eprintln!("[xtask]:     run, r    - build & run the OS in QEMU");
     eprintln!("[xtask]:     qemu, q   - run the ISO in QEMU");
     eprintln!("[xtask]:     clean     - remove all the build artifacts");

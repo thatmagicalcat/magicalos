@@ -60,6 +60,17 @@ Just clone the repository and run:
 cargo x r
 ```
 
+### Running tests
+
+Kernel tests run inside QEMU (no host std test harness), and report through the debug console:
+
+```bash
+cargo x test
+```
+
+This command compiles the kernel test binary, builds a bootable ISO, launches QEMU headless,
+and fails/succeeds based on the QEMU debug-exit code.
+
 ## TODOs:
 
 I'm constantly trying to add magic, here's the rough roadmap of features I want to implement:

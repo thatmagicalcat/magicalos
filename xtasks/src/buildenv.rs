@@ -1,4 +1,5 @@
 use color_eyre::Result;
+use std::path::{Path, PathBuf};
 use xshell::{cmd, Shell};
 use xtasks::{is_stale, project_root};
 
@@ -6,9 +7,15 @@ use crate::kernel;
 
 pub fn setup(sh: &Shell) -> Result<()> {
     let project_root = project_root();
+    let kernel_bin = project_root.join("target/x86_64/release/kernel");
+    _ = setup_for_kernel(sh, &kernel_bin, "magical.iso")?;
+    Ok(())
+}
+
+pub fn setup_for_kernel(sh: &Shell, kernel_bin: &Path, iso_name: &str) -> Result<PathBuf> {
+    let project_root = project_root();
 
     // inputs
-    let kernel_bin = project_root.join("target/x86_64/release/kernel");
     let limine = project_root.join("limine/Limine/bin");
     let initramfs = project_root.join("initramfs");
     let wallpaper_src = project_root.join("wallpaper.png");
@@ -23,7 +30,7 @@ pub fn setup(sh: &Shell) -> Result<()> {
     let efi_dest = iso_root.join("EFI/BOOT");
     let limine_config_dest = limine_dest.join("limine.conf");
     let wallpaper_dest = limine_dest.join("wallpaper.png");
-    let iso_output = build.join("magical.iso");
+    let iso_output = build.join(iso_name);
 
     sh.create_dir(&build)?;
     sh.create_dir(&limine_dest)?;
@@ -43,16 +50,19 @@ pub fn setup(sh: &Shell) -> Result<()> {
 
     let limine_bios_cd_dest = limine_dest.join("limine-bios-cd.bin");
     let limine_uefi_cd_dest = limine_dest.join("limine-uefi-cd.bin");
+    let limine_bios_sys_dest = limine_dest.join("limine-bios.sys");
+    let bootx64_dest = efi_dest.join("BOOTX64.EFI");
 
     let static_files = [
-        (&wallpaper_src, &wallpaper_dest),
-        (&limine_config_src, &limine_config_dest),
-        (&kernel_bin, &kernel_dest),
-        (&bios_sys, &limine_dest.join("limine-bios.sys")),
-        (&bios_cd, &limine_bios_cd_dest),
-        (&uefi_cd, &limine_uefi_cd_dest),
-        (&bootx64, &efi_dest.join("BOOTX64.EFI")),
+        (wallpaper_src.as_path(), wallpaper_dest.as_path()),
+        (limine_config_src.as_path(), limine_config_dest.as_path()),
+        (bios_sys.as_path(), limine_bios_sys_dest.as_path()),
+        (bios_cd.as_path(), limine_bios_cd_dest.as_path()),
+        (uefi_cd.as_path(), limine_uefi_cd_dest.as_path()),
+        (bootx64.as_path(), bootx64_dest.as_path()),
     ];
+
+    sh.copy_file(kernel_bin, &kernel_dest)?;
 
     for (src, dest) in static_files {
         if is_stale(&[src], &[dest])? {
@@ -86,7 +96,7 @@ pub fn setup(sh: &Shell) -> Result<()> {
         cmd!(sh, "{limine_bin} bios-install {iso_output}").run()?;
     }
 
-    Ok(())
+    Ok(iso_output)
 }
 
 pub fn clean(sh: &Shell) -> Result<()> {
