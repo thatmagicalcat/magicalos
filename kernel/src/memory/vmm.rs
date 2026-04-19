@@ -132,3 +132,45 @@ impl Vmm {
         self.entries.push_back(new_element);
     }
 }
+
+impl Default for Vmm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_vmm() -> Vmm {
+        let mut vmm = Vmm::new();
+        vmm.entries.push_back(VmmEntry {
+            start: 0x1000_0000,
+            end: 0x1001_0000,
+        });
+        vmm
+    }
+
+    #[test_case]
+    fn allocate_returns_aligned_address() {
+        let mut vmm = test_vmm();
+        let layout = Layout::from_size_align(0x1234, 0x1000).unwrap();
+
+        let addr = vmm.allocate(layout).expect("allocate failed");
+        assert_eq!(addr.0 as usize % 0x1000, 0);
+    }
+
+    #[test_case]
+    fn deallocate_reinserts_region() {
+        let mut vmm = test_vmm();
+        let layout = Layout::from_size_align(0x1000, 0x1000).unwrap();
+
+        let addr = vmm.allocate(layout).expect("allocate failed");
+        vmm.deallocate(addr.0 as usize, layout.size());
+
+        let first = vmm.entries.front().expect("missing region");
+        assert_eq!(first.start, 0x1000_0000);
+        assert_eq!(first.end, 0x1001_0000);
+    }
+}

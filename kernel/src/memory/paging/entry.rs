@@ -80,3 +80,58 @@ impl PageTableEntry {
             .then_some(Frame::from_addr(*self.get_physical_address() as _))
     }
 }
+
+impl Default for PageTableEntry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn page_table_entry_set_and_decode_roundtrip() {
+        let mut entry = PageTableEntry::new();
+        let frame = Frame(0x1234);
+        let flags = PageTableEntryFlags::PRESENT
+            | PageTableEntryFlags::WRITABLE
+            | PageTableEntryFlags::USER_ACCESSIBLE;
+
+        entry.set(frame, flags);
+
+        assert_eq!(
+            entry.get_physical_address().0 as usize,
+            frame.start_address()
+        );
+        assert!(entry.flags().contains(PageTableEntryFlags::PRESENT));
+        assert!(entry.flags().contains(PageTableEntryFlags::WRITABLE));
+        assert!(entry.flags().contains(PageTableEntryFlags::USER_ACCESSIBLE));
+    }
+
+    #[test_case]
+    fn page_table_entry_presence_controls_pointed_frame() {
+        let mut entry = PageTableEntry::new();
+        let frame = Frame(7);
+
+        entry.set(frame, PageTableEntryFlags::WRITABLE);
+        assert_eq!(entry.get_pointed_frame(), None);
+
+        entry.set_flags(PageTableEntryFlags::PRESENT);
+        assert_eq!(entry.get_pointed_frame(), Some(frame));
+    }
+
+    #[test_case]
+    fn page_table_entry_flag_mutation_works() {
+        let mut entry = PageTableEntry::new();
+        let frame = Frame(11);
+
+        entry.set(frame, PageTableEntryFlags::PRESENT);
+        entry.set_flags(PageTableEntryFlags::WRITABLE);
+        assert!(entry.flags().contains(PageTableEntryFlags::WRITABLE));
+
+        entry.clear_flags(PageTableEntryFlags::WRITABLE);
+        assert!(!entry.flags().contains(PageTableEntryFlags::WRITABLE));
+    }
+}

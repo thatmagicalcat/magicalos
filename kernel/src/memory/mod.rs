@@ -74,3 +74,21 @@ impl Frame {
         Self(addr / PAGE_SIZE)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn frame_from_address_rounds_down() {
+        let frame = Frame::from_addr(PAGE_SIZE * 10 + 1234);
+        assert_eq!(frame.0, 10);
+    }
+
+    #[test_case]
+    fn frame_start_and_end_addresses_are_page_aligned() {
+        let frame = Frame(42);
+        assert_eq!(frame.start_address(), 42 * PAGE_SIZE);
+        assert_eq!(frame.end_address(), 43 * PAGE_SIZE);
+    }
+}

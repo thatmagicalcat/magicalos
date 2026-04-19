@@ -1,4 +1,4 @@
-use crate::syscall::{exit::sys_exit, write::sys_write, mmap::sys_mmap};
+use crate::syscall::{exit::sys_exit, mmap::sys_mmap, write::sys_write};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(usize)]

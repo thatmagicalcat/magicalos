@@ -110,3 +110,25 @@ impl PhysicalAddress {
         (self.0 + hhdm_offest).into()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn virtual_address_indices_match_4k_layout() {
+        let addr = VirtualAddress(0xffff_8123_4567_8000);
+
+        assert_eq!(addr.p4_idx(), 0x102);
+        assert_eq!(addr.p3_idx(), 0x08d);
+        assert_eq!(addr.p2_idx(), 0x02b);
+        assert_eq!(addr.p1_idx(), 0x078);
+    }
+
+    #[test_case]
+    fn physical_to_virtual_applies_hhdm_offset() {
+        let phys = PhysicalAddress(0x0012_3400);
+        let virt = phys.to_virtual(0xffff_8000_0000_0000);
+        assert_eq!(virt.0, 0xffff_8000_0012_3400);
+    }
+}
