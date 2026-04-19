@@ -3,10 +3,10 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
-    kernel::{USER_ENTRY, USER_STACK_BOTTOM, USER_STACK_TOP},
+    kernel::{USER_STACK_BOTTOM, USER_STACK_TOP},
     limine_requests,
     memory::{
-        self,
+        self, MappingType, Vma, allocate_frame,
         paging::{PageTable, PageTableEntryFlags, VirtualAddress},
     },
     scheduler, utils,
@@ -65,7 +65,7 @@ pub extern "C" fn divide_by_zero_handler(stack_frame: &ExceptionStackFrame) {
 
 pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError) {
     let mut virtual_addr: usize;
-    let error_code = stack_frame.error_code;
+    let error_code = PageFaultErrorCode::from_bits(stack_frame.error_code as _).unwrap();
 
     unsafe {
         asm! {
@@ -80,8 +80,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
     let user_rsp = stack_frame.rsp as u64;
 
     // check if the virtual_addr falls in the 8 MiB range
-    let is_in_stack_range =
-        (USER_STACK_BOTTOM.0..USER_STACK_TOP.0).contains(&(virtual_addr as _));
+    let is_in_stack_range = (USER_STACK_BOTTOM.0..USER_STACK_TOP.0).contains(&(virtual_addr as _));
 
     // we reserve memory by subtracting rsp by a certain amount, so if the rsp was subtracted
     // before and then we're accessing that memory, it is only valid if the virtual_addr is >= rsp
@@ -90,13 +89,13 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
     // TODO: kill that process!
 
     let is_valid_stack_growth = virtual_addr as u64 >= (user_rsp.saturating_sub(RED_ZONE));
+    let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;
 
     if is_in_stack_range && is_valid_stack_growth {
         // Safe to demand page!
 
         virtual_addr = utils::align_down(virtual_addr, memory::PAGE_SIZE) as _;
         let physical_frame = memory::allocate_frame().expect("oom");
-        let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;
 
         log::debug!(
             "Demand Paging: {virtual_addr:#X} -> {:#X}",
@@ -124,9 +123,55 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
         return;
     }
 
+    // check if the pointer is in process's VMSpace
+    let vma = scheduler::with_current_task(|task| {
+        task.vmspace
+            .find(virtual_addr)
+            .map(|(start, vma)| (start, *vma))
+    });
+
+    if let Some((start, Vma { end, flags, ty })) = vma {
+        if error_code.contains(PageFaultErrorCode::CAUSED_BY_WRITE)
+            && !flags.contains(PageTableEntryFlags::WRITABLE)
+        {
+            log::error!(
+                "Segmentation Fault: Attempted to write to read-only memory at {:#x}",
+                virtual_addr,
+            );
+
+            scheduler::exit();
+        }
+
+        // NOTE: this will give us an unimplemented error in future!
+        #[allow(irrefutable_let_patterns)]
+        let MappingType::Anonymous = ty else {
+            unimplemented!("Only anonymous mappings are supported for now");
+        };
+
+        // NOTE: we only allocate & map one frame at a time
+        let frame = allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
+        let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+
+        // zero everything out
+        unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
+
+        log::debug!(
+            "Lazy mapping: {virtual_addr:#x} -> {:#x} (VMA: {start:#x}-{end:#x}, flags: {flags:?})",
+            frame.start_address(),
+        );
+
+        PageTable::active().mapper_mut().map_to(
+            VirtualAddress(virtual_addr as _),
+            frame,
+            flags | PageTableEntryFlags::USER_ACCESSIBLE,
+            &mut *memory::lock_global_frame_allocator(),
+        );
+
+        return;
+    }
+
     panic!(
-        "\nEXCEPTION: PAGE FAULT while accessing {virtual_addr:#x}\nError code: {:?}\n{:#?}",
-        unsafe { PageFaultErrorCode::from_bits(error_code as _).unwrap_unchecked() },
+        "\nEXCEPTION: PAGE FAULT while accessing {virtual_addr:#x}\nError code: {error_code:?}\n{:#?}",
         stack_frame
     );
 }

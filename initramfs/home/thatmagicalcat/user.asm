@@ -1,22 +1,24 @@
 bits 64
 
-%define SYS_WRITE 1
-%define SYS_EXIT 0
-%define STDOUT 1
+%define MAP_ANONYMOUS 0x20
+%define MAP_PRIVATE 0x02
 
-section .rodata
-    msg db "Hello from the ELF userspace process!", 0xD, 0xA ; \r\n
-    msg_len equ $ - msg
+%define PROT_READ 0x1
+%define PROT_WRITE 0x2
 
 section .text
-    global _start
+global _start
 
 _start:
-    mov rax, SYS_WRITE
-    mov rdi, STDOUT
-    mov rsi, msg
-    mov rdx, msg_len
+    mov rax, 2                           ; SYS_MMAP
+    mov rdi, 0                           ; addr
+    mov rsi, 0x1000                      ; length
+    mov rdx, PROT_READ                   ; prot
+    mov r10, MAP_PRIVATE | MAP_ANONYMOUS ; flags
     syscall
 
-    mov rax, SYS_EXIT
+    mov qword [rax], 42 ; write
+
+    mov rax, 0 ; SYS_EXIT
     syscall
+

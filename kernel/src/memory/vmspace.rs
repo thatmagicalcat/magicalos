@@ -2,7 +2,7 @@ use core::alloc::Layout;
 
 use alloc::collections::BTreeMap;
 
-use crate::{kernel::USER_STACK_BOTTOM, utils};
+use crate::{kernel::USER_STACK_BOTTOM, memory::paging::PageTableEntryFlags, utils};
 
 pub struct VmSpace {
     /// key = start address
@@ -10,9 +10,25 @@ pub struct VmSpace {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum Error {
+    Overlap,
+}
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Overlap => write!(f, "VMA overlap"),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Vma {
-    end: usize,
-    ty: MappingType,
+    pub end: usize,
+    pub flags: PageTableEntryFlags,
+    pub ty: MappingType,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -27,24 +43,30 @@ impl VmSpace {
         }
     }
 
-    pub fn insert(&mut self, start: usize, end: usize, ty: MappingType) -> Result<(), ()> {
+    pub fn insert(
+        &mut self,
+        start: usize,
+        end: usize,
+        flags: PageTableEntryFlags,
+        ty: MappingType,
+    ) -> Result<(), Error> {
         assert!(start < end);
 
         // check previous vma for overlap
         if let Some((_, prev)) = self.map.range(..=start).next_back()
             && prev.end > start
         {
-            return Err(()); // overlap
+            return Err(Error::Overlap); // overlap
         }
 
         // check next vma for overlap
         if let Some((next, _)) = self.map.range(start..).next()
             && *next < end
         {
-            return Err(()); // overlap
+            return Err(Error::Overlap); // overlap
         }
 
-        self.map.insert(start, Vma { end, ty });
+        self.map.insert(start, Vma { end, flags, ty });
         Ok(())
     }
 
@@ -68,7 +90,7 @@ impl VmSpace {
 
         if max_addr >= aligned_addr && max_addr - aligned_addr >= layout.size() {
             return Some(aligned_addr);
-        } 
+        }
 
         log::error!("OOM: no suitable free region found for {:?}", layout);
 
@@ -89,4 +111,10 @@ impl VmSpace {
     // - partial unmap
     // - merging adjacent VMAs
     // - interval trees??
+}
+
+impl Default for VmSpace {
+    fn default() -> Self {
+        Self::new()
+    }
 }

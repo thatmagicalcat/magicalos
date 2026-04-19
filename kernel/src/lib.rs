@@ -163,7 +163,7 @@ extern "C" fn load_elf(path: *const i8) {
         }
     }
 
-    log::info!("JUMP!");
+    log::info!("Leap of Faith!");
     unsafe { processor::jump_to_user_fn(entry as _) }
 }
 

@@ -108,7 +108,7 @@ pub fn init() {
 }
 
 pub fn init_for_tests() {
-    init_logging();
+    // init_logging();
     log::info!("Initializing test kernel environment");
 
     processor::init();

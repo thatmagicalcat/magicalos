@@ -6,7 +6,7 @@ use core::cell::{RefCell, UnsafeCell};
 use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
-    memory::paging::{PhysicalAddress, VirtualAddress},
+    memory::paging::{self, PhysicalAddress, VirtualAddress},
     scheduler::{
         sched::Scheduler,
         task::{Task, TaskId, TaskPriority},
@@ -58,6 +58,13 @@ pub(crate) fn add_io_interface(interface: Arc<dyn IoInterface>) -> io::Result<Fi
 
 pub(crate) fn remove_io_interface(fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).remove_io_interface(fd) }
+}
+
+pub(crate) fn with_current_task<F, R>(f: F) -> R
+where
+    F: for<'a> FnOnce(&'a mut Task) -> R,
+{
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).with_current_task(f) }
 }
 
 // pub fn allocate_vmm(

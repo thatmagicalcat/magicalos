@@ -52,7 +52,7 @@ pub fn align_down(addr: usize, align: usize) -> usize {
     } else if align == 0 {
         addr
     } else {
-        panic!("`align` must be a power of 2");
+        panic!("`align` must be a power of 2 but got {align}");
     }
 }
 

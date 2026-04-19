@@ -94,6 +94,16 @@ impl Scheduler {
         })
     }
 
+    pub(crate) fn with_current_task<T, F>(&self, f: F) -> T
+    where
+        F: for<'a> FnOnce(&'a mut Task) -> T,
+    {
+        interrupts::without_interrupts(|| {
+            let mut task = self.current_task.borrow_mut();
+            f(&mut task)
+        })
+    }
+
     // pub(crate) fn insert_vma_entry(
     //     &self,
     //     layout: core::alloc::Layout,
