@@ -5,15 +5,13 @@ use crate::errno;
 #[derive(Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(isize)]
 pub(crate) enum Error {
-    NotImplemented = errno::ENOIMPL as _,
+    NotImplemented = errno::ENOSYS as _,
     NoSuchFileOrDirectory = errno::ENOENT as _,
     InvalidValue = errno::EINVAL as _,
     BadFileDescriptor = errno::EBADF as _,
-    InvalidArgument = errno::ENOINVARG as _,
     NotADirectory = errno::ENOTDIR as _,
-    InvalidFsPath = errno::ENOINVPATH as _,
     TooManyOpenFiles = errno::EMFILE as _,
-    WriteAllEof = errno::EWRITEALLEOF as _,
+    WriteAllEOF = errno::EPIPE as _,
 }
 
 impl core::fmt::Display for Error {

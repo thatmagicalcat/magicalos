@@ -68,7 +68,7 @@ pub trait Write {
             let bytes_written = self.write(buf)?;
 
             if bytes_written == 0 {
-                return Err(Error::WriteAllEof);
+                return Err(Error::WriteAllEOF);
             }
 
             buf = &buf[bytes_written..];

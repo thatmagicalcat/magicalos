@@ -27,7 +27,7 @@ impl VfsRoot {
 
     pub fn mkdir(&self, path: &str) -> io::Result<()> {
         if !check_path(path) {
-            return Err(io::Error::InvalidFsPath);
+            return Err(io::Error::NoSuchFileOrDirectory);
         }
 
         let mut components: Vec<&str> = path.trim_end_matches('/').split('/').collect();
@@ -47,7 +47,7 @@ impl VfsRoot {
 
     pub fn open(&self, path: &str, flags: OpenOptions) -> io::Result<Arc<dyn IoInterface>> {
         if !check_path(path) {
-            return Err(io::Error::InvalidFsPath);
+            return Err(io::Error::NoSuchFileOrDirectory);
         }
 
         let mut components: Vec<&str> = path.trim_end_matches('/').split('/').collect();
@@ -59,7 +59,7 @@ impl VfsRoot {
 
     pub fn mount(&self, path: &str, region: &'static [u8]) -> io::Result<()> {
         if !check_path(path) {
-            return Err(io::Error::InvalidFsPath);
+            return Err(io::Error::NoSuchFileOrDirectory);
         }
 
         let mut components: Vec<&str> = path.trim_end_matches('/').split('/').collect();
@@ -162,7 +162,7 @@ impl VfsDirectoryNode for VfsDirectory {
         flags: OpenOptions,
     ) -> io::Result<Arc<dyn IoInterface>> {
         let Some(node_name) = components.pop() else {
-            return Err(io::Error::InvalidArgument);
+            return Err(io::Error::InvalidValue);
         };
 
         // if this was the last component, then it must be the file name
@@ -181,7 +181,7 @@ impl VfsDirectoryNode for VfsDirectory {
                 return handle;
             }
 
-            return Err(io::Error::InvalidArgument);
+            return Err(io::Error::InvalidValue);
         }
 
         // current node must be a directory
@@ -194,7 +194,7 @@ impl VfsDirectoryNode for VfsDirectory {
 
     fn mount(&mut self, components: &mut Vec<&str>, region: &'static [u8]) -> io::Result<()> {
         let Some(node_name) = components.pop() else {
-            return Err(io::Error::InvalidArgument);
+            return Err(io::Error::InvalidValue);
         };
 
         // if this was the last component, then it must be the file name
