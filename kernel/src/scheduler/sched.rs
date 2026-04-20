@@ -13,10 +13,7 @@ use crate::{
     arch::interrupts,
     fd::FileDescriptor,
     io::{self, IoInterface},
-    memory::{
-        self,
-        paging::{PhysicalAddress, VirtualAddress},
-    },
+    memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::task::{NUM_PRIORITIES, TaskStatus},
     utils,
 };

@@ -4,7 +4,7 @@ use crate::errno;
 
 #[derive(Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(isize)]
-pub(crate) enum Error {
+pub enum Error {
     NotImplemented = errno::ENOSYS as _,
     NoSuchFileOrDirectory = errno::ENOENT as _,
     InvalidValue = errno::EINVAL as _,

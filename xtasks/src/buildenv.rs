@@ -7,7 +7,7 @@ use crate::kernel;
 
 pub fn setup(sh: &Shell, quiet: bool) -> Result<()> {
     let project_root = project_root();
-    let kernel_bin = project_root.join("target/x86_64/release/kernel");
+    let kernel_bin = project_root.join("target/x86_64/release/magicalos-kernel");
     _ = setup_for_kernel(sh, &kernel_bin, "magical.iso", quiet)?;
     Ok(())
 }

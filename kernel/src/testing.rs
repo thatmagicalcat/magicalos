@@ -1,8 +1,45 @@
+use core::arch::asm;
+
 use crate::bus::port::Port;
 #[cfg(test)]
 use crate::kernel;
 #[cfg(test)]
 use spin::Once;
+
+use crate::{dbg_print, dbg_println};
+
+pub trait Testable {
+    fn run(&self);
+}
+
+impl<T> Testable for T
+where
+    T: Fn(),
+{
+    fn run(&self) {
+        dbg_print!("test {} ... ", core::any::type_name::<T>());
+        self();
+        dbg_println!("[ok]");
+    }
+}
+
+pub fn test_runner(tests: &[&dyn Testable]) {
+    ensure_test_kernel_init();
+    dbg_println!("running {} tests", tests.len());
+
+    for test in tests {
+        test.run();
+    }
+
+    dbg_println!("all tests passed");
+    exit_qemu(QemuExitCode::Success)
+}
+
+pub fn test_panic_handler(info: &core::panic::PanicInfo) -> ! {
+    dbg_println!("[failed]");
+    dbg_println!("{}", info);
+    exit_qemu(QemuExitCode::Failed)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -14,9 +51,9 @@ pub enum QemuExitCode {
 pub fn exit_qemu(code: QemuExitCode) -> ! {
     unsafe {
         u32::write_to_port(0xF4, code as u32);
-    }
 
-    crate::halt_loop()
+        loop { asm!("hlt") }
+    }
 }
 
 #[cfg(test)]

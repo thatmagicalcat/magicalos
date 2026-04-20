@@ -254,29 +254,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kernel"
-version = "0.1.0"
-dependencies = [
- "acpi",
- "bit_field",
- "bitflags",
- "crossbeam-queue",
- "enum_dispatch",
- "flanterm",
- "futures-util",
- "lazy_static",
- "limine",
- "lock_api",
- "log",
- "num",
- "num-derive",
- "num-traits",
- "pc-keyboard",
- "raw-cpuid",
- "spin 0.10.0",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -322,6 +299,29 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
+
+[[package]]
+name = "magicalos-kernel"
+version = "0.1.0"
+dependencies = [
+ "acpi",
+ "bit_field",
+ "bitflags",
+ "crossbeam-queue",
+ "enum_dispatch",
+ "flanterm",
+ "futures-util",
+ "lazy_static",
+ "limine",
+ "lock_api",
+ "log",
+ "num",
+ "num-derive",
+ "num-traits",
+ "pc-keyboard",
+ "raw-cpuid",
+ "spin 0.10.0",
+]
 
 [[package]]
 name = "memchr"

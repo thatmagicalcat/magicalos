@@ -3,7 +3,7 @@ use core::fmt::Debug;
 mod error;
 
 use alloc::{string::String, vec::Vec};
-pub(crate) use error::Error;
+pub use error::Error;
 
 use crate::fs::SeekFrom;
 

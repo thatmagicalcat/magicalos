@@ -8,8 +8,8 @@ bitflags::bitflags! {
         const PRESENT         = 1 << 0;
         const WRITABLE        = 1 << 1;
         const USER_ACCESSIBLE = 1 << 2;
-        const WRITE_THROUGH   = 1 << 3; // PWT
-        const CACHE_DISABLE   = 1 << 4; // PCD
+        const WRITE_THROUGH   = 1 << 3;
+        const CACHE_DISABLE   = 1 << 4;
         const ACCESSED        = 1 << 5;
         const DIRTY           = 1 << 6;
         const HUGE_PAGE       = 1 << 7;
@@ -17,11 +17,18 @@ bitflags::bitflags! {
         const NO_EXECUTE      = 1 << 63;
 
        /*
-        * 9 - 11 are available to be used by the OS
+        * 9 - 11 & 52 - 62 are available to be used by the OS
         * 12 - 51 physical address
-        * 52 - 62 are available to be used by the OS
         */
     }
+}
+
+fn f(i: *const i32) -> bool {
+    if i as usize % 100 == 0 {
+        return true;
+    }
+
+    false
 }
 
 #[repr(transparent)]
