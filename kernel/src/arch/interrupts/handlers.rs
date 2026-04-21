@@ -3,7 +3,7 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
-    kernel::{USER_STACK_BOTTOM, USER_STACK_TOP},
+    kernel::{self, USER_STACK_BOTTOM, USER_STACK_TOP},
     limine_requests,
     memory::{
         self, MappingType, Vma, allocate_frame,
@@ -93,7 +93,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
     // reserved!
 
     let is_valid_stack_growth = virtual_addr as u64 >= (user_rsp.saturating_sub(RED_ZONE));
-    let hhdm_offset = unsafe { (*limine_requests::HHDM_REQUEST.response).offset } as usize;
+    let hhdm_offset = kernel::get_hhdm_offset();
 
     if is_in_stack_range && is_valid_stack_growth {
         // Safe to demand page!

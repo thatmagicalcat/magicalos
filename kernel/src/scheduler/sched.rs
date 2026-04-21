@@ -124,7 +124,6 @@ impl Scheduler {
             }
 
             let closure_ptr = task.borrow_mut().push_onto_stack(f);
-
             task.borrow_mut()
                 .create_stack_frame(trampoline::<F> as *const () as _, closure_ptr);
 

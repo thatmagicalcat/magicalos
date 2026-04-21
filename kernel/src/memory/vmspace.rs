@@ -35,7 +35,7 @@ pub struct Vma {
 pub enum MappingType {
     Anonymous,
     Elf {
-        data: Arc<Vec<u8>>,
+        data: Arc<[u8]>,
         file_offset: usize,
         file_size: usize,
     },

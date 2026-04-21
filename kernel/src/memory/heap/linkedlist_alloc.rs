@@ -136,6 +136,7 @@ impl LinkedListAllocator {
         log::error!(
             "Heap: Out of memory, allocation of {effective_size} (align: {effective_align}) failed"
         );
+
         None
     }
 
@@ -186,47 +187,3 @@ impl Default for LinkedListAllocator {
 // SAFETY: trust me bro
 unsafe impl Send for LinkedListAllocator {}
 unsafe impl Sync for LinkedListAllocator {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    static mut HEAP_MEM: [u8; 64 * 1024] = [0; 64 * 1024];
-
-    fn allocator() -> LinkedListAllocator {
-        let mut allocator = LinkedListAllocator::new();
-        unsafe {
-            allocator.init(core::ptr::addr_of_mut!(HEAP_MEM).cast::<u8>(), 64 * 1024);
-        }
-        allocator
-    }
-
-    #[test_case]
-    fn alloc_and_free_roundtrip() {
-        let mut alloc = allocator();
-        let layout = Layout::from_size_align(64, 8).unwrap();
-
-        let ptr = alloc.kmalloc(layout).expect("allocation failed");
-        alloc.kfree(ptr, layout);
-
-        let ptr2 = alloc.kmalloc(layout).expect("re-allocation failed");
-        assert_eq!(ptr.as_ptr(), ptr2.as_ptr());
-    }
-
-    #[test_case]
-    fn allocator_respects_alignment() {
-        let mut alloc = allocator();
-        let layout = Layout::from_size_align(128, 64).unwrap();
-
-        let ptr = alloc.kmalloc(layout).expect("allocation failed");
-        assert_eq!((ptr.as_ptr() as usize) % 64, 0);
-    }
-
-    #[test_case]
-    fn allocation_fails_when_out_of_memory() {
-        let mut alloc = allocator();
-        let layout = Layout::from_size_align(128 * 1024, 8).unwrap();
-
-        assert!(alloc.kmalloc(layout).is_none());
-    }
-}

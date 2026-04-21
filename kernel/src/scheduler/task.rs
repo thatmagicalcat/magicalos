@@ -3,8 +3,11 @@ use core::{cell::RefCell, mem, ops::Range};
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, VecDeque},
+    ffi::CString,
     rc::Rc,
+    string::String,
     sync::Arc,
+    vec::Vec,
 };
 
 use crate::{
@@ -175,11 +178,13 @@ pub(crate) struct Task {
     pub status: TaskStatus,
     pub last_stack_ptr: usize,
     pub stack: Box<dyn Stack>,
-    /// The physical address of PML4 page table for this task
     pub root_page_table: PhysicalAddress,
     pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>,
     pub vmspace: VmSpace,
     pub fpu_state: Box<FpuState>,
+    pub cwd: String,
+    pub argv: Vec<CString>,
+    pub envp: Vec<CString>,
 }
 
 impl Task {
@@ -200,6 +205,9 @@ impl Task {
             fd_map,
             vmspace: VmSpace::new(),
             fpu_state: Box::new(FpuState::default()),
+            cwd: String::new(),
+            argv: Vec::new(),
+            envp: Vec::new(),
         }
     }
 
@@ -214,14 +222,15 @@ impl Task {
             vmspace: VmSpace::new(),
             fd_map: BTreeMap::new(),
             fpu_state: Box::new(FpuState::default()),
+            cwd: String::new(),
+            argv: Vec::new(),
+            envp: Vec::new(),
         }
     }
 
     pub fn create_stack_frame(&mut self, entry_point: usize, arg: usize) {
-        let mut sp: *mut u64 = self.stack.top().as_mut_ptr();
         unsafe {
-            // stack poisoning
-            core::ptr::write_bytes(self.stack.bottom().as_mut_ptr::<u8>(), 0xCD, STACK_SIZE);
+            let mut sp = self.last_stack_ptr as *mut u64;
 
             sp = sp.offset(-1);
             *sp = leave_task as *const () as _;
