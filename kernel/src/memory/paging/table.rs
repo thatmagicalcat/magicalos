@@ -5,7 +5,10 @@ use core::{
 
 use crate::{
     kernel,
-    memory::{FrameAllocator, paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress}},
+    memory::{
+        FrameAllocator,
+        paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
+    },
     utils,
 };
 
@@ -83,7 +86,6 @@ impl<L: TableLevel> PhysicalPageTable<L> {
     pub fn next_table_create<A: FrameAllocator>(
         &mut self,
         index: usize,
-        additional_flags: PageTableEntryFlags,
         allocator: &mut A,
     ) -> &mut PhysicalPageTable<L::NextLevel> {
         if self.next_table_addr(index).is_none() {
@@ -93,9 +95,14 @@ impl<L: TableLevel> PhysicalPageTable<L> {
             );
 
             let physical_frame = allocator.allocate_frame().expect("OOM");
+
+            let intermediate_flags = PageTableEntryFlags::PRESENT
+                | PageTableEntryFlags::WRITABLE
+                | PageTableEntryFlags::USER_ACCESSIBLE;
+
             self.entries[index].set(
                 physical_frame,
-                additional_flags | PageTableEntryFlags::PRESENT | PageTableEntryFlags::WRITABLE,
+                intermediate_flags,
             );
 
             self.next_table_mut(index).unwrap().zero();

@@ -92,9 +92,9 @@ impl Mapper {
         // log::trace!("map(): {:#010x} -> {:#010x}, flags = {flags:?}", page.0, frame.start_address());
 
         let p4 = self.as_mut();
-        let p3 = p4.next_table_create(page.p4_idx() as _, flags, allocator);
-        let p2 = p3.next_table_create(page.p3_idx() as _, flags, allocator);
-        let p1 = p2.next_table_create(page.p2_idx() as _, flags, allocator);
+        let p3 = p4.next_table_create(page.p4_idx() as _, allocator);
+        let p2 = p3.next_table_create(page.p3_idx() as _, allocator);
+        let p1 = p2.next_table_create(page.p2_idx() as _, allocator);
 
         assert!(p1[page.p1_idx()].is_unused());
         p1[page.p1_idx()].set(frame, flags | PageTableEntryFlags::PRESENT);
