@@ -4,10 +4,9 @@ use core::{
 };
 
 use crate::{
-    kernel, limine_requests::HHDM_REQUEST, memory::{
-        FrameAllocator,
-        paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
-    }, utils
+    kernel,
+    memory::{FrameAllocator, paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress}},
+    utils,
 };
 
 use super::PageTableEntry;

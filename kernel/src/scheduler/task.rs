@@ -342,7 +342,6 @@ where
 
 impl RecursiveDrop<L1> for L1 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L1>) {
-        log::trace!("Dealloc L1");
         memory::deallocate_frame(Frame::from_addr(ptr as usize - kernel::get_hhdm_offset()));
     }
 }
@@ -350,8 +349,6 @@ impl RecursiveDrop<L1> for L1 {
 impl Drop for Task {
     fn drop(&mut self) {
         if self.root_page_table != kernel::get_kernel_page_table().get_physical_address() {
-            log::debug!("Deallocating page table of task id: {}", self.id);
-
             let hhdm_offset = kernel::get_hhdm_offset();
             let ptr: *mut PhysicalPageTable<L4> =
                 (self.root_page_table.0 as usize + hhdm_offset) as _;

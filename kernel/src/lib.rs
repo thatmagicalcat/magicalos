@@ -37,26 +37,49 @@ use io::Read;
 use crate::{
     arch::processor,
     kernel::{USER_STACK_BOTTOM, USER_STACK_TOP},
-    memory::paging::{PageTableEntry, PageTableEntryFlags, VirtualAddress},
+    memory::paging::{PageTableEntryFlags, VirtualAddress},
 };
 
 #[rustfmt::skip]
 pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
     #[cfg(log_level = "trace")] { log::LevelFilter::Trace }
     #[cfg(log_level = "debug")] { log::LevelFilter::Debug }
-    #[cfg(log_level = "info")] { log::LevelFilter::Info }
-    #[cfg(log_level = "warn")] { log::LevelFilter::Warn }
+    #[cfg(log_level = "info" )] { log::LevelFilter::Info  }
+    #[cfg(log_level = "warn" )] { log::LevelFilter::Warn  }
     #[cfg(log_level = "error")] { log::LevelFilter::Error }
 };
 
 pub fn kentry() {
     kernel::init();
 
-    extern "C" fn helper() {
-        load_elf(c"/home/thatmagicalcat/main.elf".as_ptr());
-    }
+    scheduler::spawn(
+        || load_elf(c"/home/thatmagicalcat/main.elf".as_ptr()),
+        scheduler::NORMAL_PRIORITY,
+    )
+    .unwrap();
 
-    scheduler::spawn(helper, scheduler::NORMAL_PRIORITY).unwrap();
+    // scheduler::spawn(
+    //     || loop {
+    //         println!("ello!");
+    //         arch::hpet::HPET
+    //             .get()
+    //             .unwrap()
+    //             .busy_wait(core::time::Duration::from_millis(100));
+    //     },
+    //     scheduler::NORMAL_PRIORITY,
+    // )
+    // .unwrap();
+
+    scheduler::spawn(
+        || {
+            let mut async_rt = async_rt::Executor::new();
+            async_rt.spawn(drivers::keyboard::handle_keypresses());
+            async_rt.run();
+        },
+        scheduler::REALTIME_PRIORITY,
+    )
+    .unwrap();
+
     scheduler::reschedule();
 
     loop {
@@ -233,7 +256,10 @@ extern "C" fn load_elf(path: *const i8) {
 
     // 16 bytes of random data
     // TODO: generate this value using a PRNG
-    let entropy: [u8; 16] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+    let entropy: [u8; 16] = [
+        0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+        0xFF,
+    ];
     let at_random_ptr = push_bytes(&entropy, rsp);
 
     let env_str = b"FOO=BAR\0";

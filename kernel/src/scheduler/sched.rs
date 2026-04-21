@@ -15,10 +15,7 @@ use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::{
-        FpuState,
-        task::{NUM_PRIORITIES, TaskStatus},
-    },
+    scheduler::task::{NUM_PRIORITIES, TaskStatus},
     utils,
 };
 
@@ -129,7 +126,7 @@ impl Scheduler {
             let closure_ptr = task.borrow_mut().push_onto_stack(f);
 
             task.borrow_mut()
-                .create_stack_frame(trampoline::<F> as _, closure_ptr);
+                .create_stack_frame(trampoline::<F> as *const () as _, closure_ptr);
 
             self.ready_queue.push(&task);
             self.tasks.insert(task_id, Rc::clone(&task));
@@ -137,7 +134,7 @@ impl Scheduler {
             log::info!(
                 "Spawned task with ID {:?} and priority {:?}",
                 task_id,
-                priority
+                priority,
             );
 
             Ok(task_id)
@@ -153,19 +150,6 @@ impl Scheduler {
             f(&mut task)
         })
     }
-
-    // pub(crate) fn insert_vma_entry(
-    //     &self,
-    //     layout: core::alloc::Layout,
-    // ) -> Result<VirtualAddress, &'static str> {
-    //     interrupts::without_interrupts(|| self.current_task.borrow_mut().vmm.allocate(layout))
-    // }
-    //
-    // pub(crate) fn deallocate_vmm(&self, address: usize, size: usize) {
-    //     interrupts::without_interrupts(|| {
-    //         self.current_task.borrow_mut().vmm.deallocate(address, size)
-    //     })
-    // }
 
     pub(crate) fn get_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
         interrupts::without_interrupts(|| {
@@ -223,7 +207,7 @@ impl Scheduler {
         // if we have finished tasks -> drop tasks -> deallocate stack (implicit)
         while let Some(task_id) = self.finished_tasks.pop_front() {
             if self.tasks.remove(&task_id).is_some() {
-                log::trace!("Dropping task with id {:?}", task_id);
+                // log::trace!("Dropping task with id {:?}", task_id);
                 // ref count - 1
             } else {
                 log::error!("Failed to drop task with id {:?} - not found", task_id);
@@ -246,7 +230,7 @@ impl Scheduler {
             && current_status != TaskStatus::Running
             && current_status != TaskStatus::Idle
         {
-            log::trace!("Switch to idle task");
+            // log::trace!("Switch to idle task");
             next_task = Some(Rc::clone(&self.idle_task));
         }
 
@@ -261,10 +245,10 @@ impl Scheduler {
                 self.current_task.borrow_mut().status = TaskStatus::Ready;
                 self.ready_queue.push(&self.current_task);
             } else if current_status == TaskStatus::Finished {
-                log::trace!(
-                    "Task with id {:?} has finished, adding to finished tasks",
-                    current_id
-                );
+                // log::trace!(
+                //     "Task with id {:?} has finished, adding to finished tasks",
+                //     current_id
+                // );
 
                 self.finished_tasks.push_back(current_id);
             }
@@ -281,7 +265,7 @@ impl Scheduler {
     pub fn block_current_task(&self) -> RcTask {
         interrupts::without_interrupts(|| {
             if self.current_task.borrow().status == TaskStatus::Running {
-                log::trace!("Block task with id {:?}", self.current_task.borrow().id);
+                // log::trace!("Block task with id {:?}", self.current_task.borrow().id);
 
                 self.current_task.borrow_mut().status = TaskStatus::Blocked;
                 Rc::clone(&self.current_task)
@@ -296,11 +280,23 @@ impl Scheduler {
 
     pub fn wakeup_task(&mut self, task: &RcTask) {
         if task.borrow().status == TaskStatus::Blocked {
-            log::trace!("Waking up task id: {:?}", task.borrow().id);
+            // log::trace!("Waking up task id: {:?}", task.borrow().id);
 
             task.borrow_mut().status = TaskStatus::Ready;
             self.ready_queue.push(task);
         }
+    }
+
+    pub fn wakeup_task_by_id(&mut self, id: TaskId) {
+        interrupts::without_interrupts(|| {
+            if let Some(task) = self.tasks.get(&id)
+                && task.borrow().status == TaskStatus::Blocked
+            {
+                // log::trace!("Waking up OS task id: {:?}", id);
+                task.borrow_mut().status = TaskStatus::Ready;
+                self.ready_queue.push(task);
+            }
+        });
     }
 
     pub fn get_current_task_id(&self) -> TaskId {

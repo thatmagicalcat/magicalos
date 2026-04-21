@@ -75,6 +75,10 @@ pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };
 }
 
+pub(crate) fn wakeup_task_by_id(id: TaskId) {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task_by_id(id) };
+}
+
 pub fn get_current_task_id() -> TaskId {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_current_task_id() }
 }

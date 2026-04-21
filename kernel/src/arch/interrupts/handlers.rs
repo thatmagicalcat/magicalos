@@ -182,11 +182,6 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
             }
         }
 
-        log::trace!(
-            "Lazy mapping: {virtual_addr:#x} -> {:#x} (VMA: {vma_start_addr:#x}-{end:#x}, {ty:?})",
-            frame.start_address(),
-        );
-
         PageTable::active().mapper_mut().map_to(
             VirtualAddress(virtual_addr as _),
             frame,
