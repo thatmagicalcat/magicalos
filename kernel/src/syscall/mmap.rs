@@ -78,10 +78,6 @@ pub(crate) fn sys_mmap(
             Err(v) => return v,
         };
 
-        log::debug!(
-            "sys_mmap(): addr={addr:#x}, length={length}, prot={prot:?}, flags={flags:?}, fd={fd}, offset={offset}",
-        );
-
         let flags = get_page_table_entry_flags(prot);
         let start = utils::align_down(addr as _, memory::PAGE_SIZE);
 
@@ -140,7 +136,14 @@ fn get_mmap_addr(
         || task.vmspace.find(hint).is_some()
     {
         // if overlaps or not page-aligned, we need to find a new address
-        let layout = Layout::from_size_align(length, memory::PAGE_SIZE).unwrap();
+        let layout = match Layout::from_size_align(length, memory::PAGE_SIZE) {
+            Ok(l) => l,
+            Err(_) => {
+                log::error!("sys_mmap: invalid layout size requested");
+                return Err(-errno::ENOMEM as _);
+            }
+        };
+
         let Some(new_addr) = task.vmspace.find_free_region(layout) else {
             log::error!("OOM: no suitable free region found for {:?}", layout);
             return Err(-errno::ENOMEM as _);
