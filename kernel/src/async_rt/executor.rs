@@ -14,6 +14,7 @@ pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
     ready_queue: Arc<ArrayQueue<TaskId>>,
     waker_cache: BTreeMap<TaskId, Waker>,
+    os_task_id: Option<scheduler::TaskId>,
 }
 
 impl Executor {
@@ -24,6 +25,7 @@ impl Executor {
             tasks: BTreeMap::new(),
             ready_queue: Arc::new(ArrayQueue::new(100)),
             waker_cache: BTreeMap::new(),
+            os_task_id: None,
         }
     }
 
@@ -38,10 +40,10 @@ impl Executor {
 
     pub fn run(&mut self) -> ! {
         log::info!("Running Task Executor");
+        self.os_task_id = Some(scheduler::get_current_task_id());
 
         loop {
             self.run_queued_tasks();
-            scheduler::reschedule();
             self.sleep_if_idle();
         }
     }
@@ -54,13 +56,16 @@ impl Executor {
     }
 
     fn run_queued_tasks(&mut self) {
+        let Some(os_task_id) = self.os_task_id else {
+            unreachable!("Executor is not running")
+        };
+
         while let Some(task_id) = self.ready_queue.pop()
             && let Some(task) = self.tasks.get_mut(&task_id)
         {
-            let waker: &mut Waker = self
-                .waker_cache
-                .entry(task_id)
-                .or_insert_with(|| create_waker(task_id, Arc::clone(&self.ready_queue)));
+            let waker: &mut Waker = self.waker_cache.entry(task_id).or_insert_with(|| {
+                create_waker(task_id, Arc::clone(&self.ready_queue), os_task_id)
+            });
 
             let mut context = Context::from_waker(waker);
 
@@ -73,5 +78,11 @@ impl Executor {
                 }
             }
         }
+    }
+}
+
+impl Default for Executor {
+    fn default() -> Self {
+        Self::new()
     }
 }
