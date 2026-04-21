@@ -1,5 +1,6 @@
 use crate::syscall::{
-    arch_prctl::sys_arch_prctl, empty::sys_empty, exit::sys_exit, mmap::sys_mmap, write::sys_write,
+    arch_prctl::sys_arch_prctl, exit::sys_exit, mmap::sys_mmap, read::sys_read,
+    write::sys_write,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -26,7 +27,7 @@ impl SyscallTable {
         Self {
             handle: [
                 sys_exit as _,
-                sys_empty as _,
+                sys_read as _,
                 sys_write as _,
                 sys_mmap as _,
                 sys_arch_prctl as _,

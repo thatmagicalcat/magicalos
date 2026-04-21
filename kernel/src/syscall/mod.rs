@@ -2,6 +2,7 @@ mod table;
 
 mod empty;
 mod exit;
+mod read;
 mod arch_prctl;
 mod write;
 mod mmap;

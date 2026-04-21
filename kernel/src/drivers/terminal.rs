@@ -7,6 +7,24 @@ use crate::synch::Spinlock;
 
 pub static TERMINAL: Spinlock<Option<Terminal>> = Spinlock::new(None);
 
+pub fn backspace() {
+    use flanterm::*;
+
+    crate::arch::interrupts::without_interrupts(|| {
+        let ctx = TERMINAL.lock().as_mut().unwrap().ctx;
+        let mut x = 0;
+        let mut y = 0;
+
+        unsafe {
+            flanterm_get_cursor_pos(ctx, &raw mut x, &raw mut y);
+            flanterm_set_cursor_pos(ctx, x - 1, y);
+            flanterm_write(ctx, r" ".as_ptr() as _, 1);
+            flanterm_set_cursor_pos(ctx, x - 1, y);
+            flanterm_flush(ctx);
+        }
+    })
+}
+
 pub struct Terminal {
     ctx: *mut flanterm::flanterm_context,
 }
@@ -32,6 +50,8 @@ impl Terminal {
         Self { ctx }
     }
 
+    pub fn backspace(&mut self) {}
+
     pub const fn inner(&mut self) -> *mut flanterm::flanterm_context {
         self.ctx
     }
@@ -48,13 +68,9 @@ impl Terminal {
         }
 
         for line in lines {
-            self.write_str_raw("\r\n");
+            self.write_bytes_raw("\r\n".as_bytes());
             self.write_bytes_raw(line);
         }
-    }
-
-    fn write_str_raw(&mut self, s: &str) {
-        unsafe { flanterm::flanterm_write(self.ctx, s.as_ptr() as _, s.len() as _) };
     }
 }
 
@@ -69,12 +85,12 @@ impl core::fmt::Write for Terminal {
         let mut lines = s.split('\n');
 
         if let Some(first) = lines.next() {
-            self.write_str_raw(first);
+            self.write_bytes_raw(first.as_bytes());
         }
 
         for line in lines {
-            self.write_str_raw("\r\n");
-            self.write_str_raw(line);
+            self.write_bytes_raw("\r\n".as_bytes());
+            self.write_bytes_raw(line.as_bytes());
         }
 
         Ok(())
