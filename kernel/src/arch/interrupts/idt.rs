@@ -1,11 +1,9 @@
 use core::arch::naked_asm;
 
 use lazy_static::lazy_static;
-use spin::{Lazy, Mutex};
+use spin::Mutex;
 
-use crate::{
-    exception_handler, exception_handler_with_error_code, memory::PAGE_SIZE, scheduler, utils,
-};
+use crate::{exception_handler, exception_handler_with_error_code, memory::PAGE_SIZE};
 
 use super::{handlers::*, table::Idt};
 
@@ -13,6 +11,7 @@ use super::{handlers::*, table::Idt};
 #[derive(Debug, Clone, Copy)]
 pub enum InterruptEntryType {
     DivideByZero = 0,
+    DeviceNotAvailable = 7,
     PageFault = 14,
     Breakpoint = 3,
     InvalidOpcode = 6,
@@ -48,6 +47,7 @@ lazy_static::lazy_static! {
         use InterruptEntryType::*;
 
         idt.set_handler(DivideByZero, exception_handler!(divide_by_zero_handler));
+        idt.set_handler(DeviceNotAvailable, exception_handler!(device_not_available));
         idt.set_handler(Breakpoint, exception_handler!(breakpoint_handler));
         idt.set_handler(InvalidOpcode, exception_handler!(invalid_opcode));
         idt.set_handler(StackSegmentFault, exception_handler_with_error_code!(stack_segment_fault));
