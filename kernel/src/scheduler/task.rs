@@ -11,7 +11,6 @@ use crate::{
     fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
     io::IoInterface,
     kernel,
-    limine_requests::HHDM_REQUEST,
     memory::{
         self, Frame, VmSpace,
         paging::{
@@ -294,7 +293,7 @@ where
     L::NextLevel: RecursiveDrop<L::NextLevel>,
 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L>) {
-        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
+        let hhdm_offset = kernel::get_hhdm_offset();
         let physical_frame = Frame::from_addr((ptr as usize - hhdm_offset) as _);
 
         for entry in unsafe { &(&*ptr)[L::DROPPABLE_RANGE] } {
@@ -312,9 +311,7 @@ where
 impl RecursiveDrop<L1> for L1 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L1>) {
         log::trace!("Dealloc L1");
-        memory::deallocate_frame(Frame::from_addr(
-            (ptr as u64 - unsafe { (*HHDM_REQUEST.response).offset }) as _,
-        ));
+        memory::deallocate_frame(Frame::from_addr(ptr as usize - kernel::get_hhdm_offset()));
     }
 }
 
@@ -323,7 +320,7 @@ impl Drop for Task {
         if self.root_page_table != kernel::get_kernel_page_table().get_physical_address() {
             log::debug!("Deallocating page table of task id: {}", self.id);
 
-            let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
+            let hhdm_offset = kernel::get_hhdm_offset();
             let ptr: *mut PhysicalPageTable<L4> =
                 (self.root_page_table.0 as usize + hhdm_offset) as _;
             L4::recursive_drop(ptr);

@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use acpi::{Handler, PciAddress, PhysicalMapping};
 
-use crate::limine_requests::HHDM_REQUEST;
+use crate::{kernel, limine_requests::HHDM_REQUEST};
 
 use super::port::Port;
 
@@ -15,7 +15,7 @@ impl Handler for KernelAcpiHandler {
         physical_address: usize,
         size: usize,
     ) -> PhysicalMapping<Self, T> {
-        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset as usize };
+        let hhdm_offset = kernel::get_hhdm_offset();
         let virtual_address = physical_address + hhdm_offset;
 
         PhysicalMapping {

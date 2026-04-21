@@ -25,6 +25,10 @@ pub fn get_kernel_page_table() -> &'static mut PageTable {
     }
 }
 
+pub fn get_hhdm_offset() -> usize {
+    unsafe { (*HHDM_REQUEST.response).offset as usize }
+}
+
 pub fn init() {
     init_logging();
     log::info!("Hello, World!");
@@ -138,10 +142,10 @@ pub fn init_for_tests() {
 }
 
 fn log_memmap(memory_map: &[*mut limine::limine_memmap_entry]) {
-    let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset };
+    let hhdm_offset = get_hhdm_offset();
     log::info!("Memory areas:     virt -> phys       |           size | type");
     for entry in memory_map.iter().map(|e| unsafe { &**e }) {
-        let virtual_start = entry.base + hhdm_offset;
+        let virtual_start = entry.base + hhdm_offset as u64;
         log::info!(
             "  * {virtual_start:#010x} -> {:#010x} | {:>10} KiB | {}",
             entry.base,
@@ -167,7 +171,7 @@ fn parse_acpi_tables() -> acpi::AcpiTables<bus::acpi::KernelAcpiHandler> {
     log::info!("Parsing ACPI tables");
 
     let response = unsafe { &*RSDP_REQUEST.response };
-    let rsdp_phys = response.address as usize - unsafe { (*HHDM_REQUEST.response).offset as usize };
+    let rsdp_phys = response.address as usize - get_hhdm_offset();
 
     log::info!("RSDP physical address: {:#010x}", rsdp_phys);
 

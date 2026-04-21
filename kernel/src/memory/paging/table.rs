@@ -4,12 +4,10 @@ use core::{
 };
 
 use crate::{
-    limine_requests::HHDM_REQUEST,
-    memory::{
+    kernel, limine_requests::HHDM_REQUEST, memory::{
         FrameAllocator,
         paging::{Mapper, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
-    },
-    utils,
+    }, utils
 };
 
 use super::PageTableEntry;
@@ -66,7 +64,7 @@ impl<L: TableLevel> PhysicalPageTable<L> {
             return Some(
                 entry
                     .get_physical_address()
-                    .to_virtual(unsafe { (*HHDM_REQUEST.response).offset }),
+                    .to_virtual(kernel::get_hhdm_offset() as _),
             );
         }
 
@@ -175,7 +173,7 @@ impl PageTable {
         Self {
             mapper: Mapper::new(
                 utils::read_cr3()
-                    .to_virtual(unsafe { (*HHDM_REQUEST.response).offset })
+                    .to_virtual(kernel::get_hhdm_offset() as _)
                     .as_mut_ptr(),
             ),
         }
@@ -194,7 +192,7 @@ impl PageTable {
 
     pub fn get_physical_address(&self) -> PhysicalAddress {
         // physical addr = virtual addr - hhdm_offset
-        PhysicalAddress(self.mapper.p4 as usize as u64 - unsafe { (*HHDM_REQUEST.response).offset })
+        PhysicalAddress(self.mapper.p4 as usize as u64 - kernel::get_hhdm_offset() as u64)
     }
 
     // The trick:

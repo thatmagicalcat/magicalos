@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use crate::{limine_requests::HHDM_REQUEST, memory::FrameAllocator};
+use crate::{kernel, limine_requests::HHDM_REQUEST, memory::FrameAllocator};
 
 use super::{Frame, PAGE_SIZE};
 
@@ -18,7 +18,7 @@ pub struct BitmapFrameAllocator {
 
 impl BitmapFrameAllocator {
     pub fn new(entries: &[*mut limine::limine_memmap_entry]) -> Self {
-        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset as usize };
+        let hhdm_offset = kernel::get_hhdm_offset();
         let highest_address = entries
             .iter()
             .map(|&entry_ptr| unsafe { &*entry_ptr })

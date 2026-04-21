@@ -1,8 +1,10 @@
 bits 64
 
 %define SYS_EXIT 0
-%define SYS_WRITE 1
-%define SYS_MMAP 2
+%define SYS_READ 1
+%define SYS_WRITE 2
+%define SYS_MMAP 3
+%define SYS_ARCH_PRCTL 4
 
 %define MAP_ANONYMOUS 0x20
 %define MAP_PRIVATE 0x02

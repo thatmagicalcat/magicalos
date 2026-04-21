@@ -10,6 +10,7 @@ extern crate alloc;
 
 pub mod arch;
 pub mod async_rt;
+pub mod auxvec;
 pub mod bus;
 pub mod drivers;
 pub mod elf;
@@ -26,7 +27,8 @@ pub mod synch;
 pub mod syscall;
 pub mod testing;
 pub mod utils;
-pub mod volatile;
+
+use core::ops::Add;
 
 use alloc::{sync::Arc, vec::Vec};
 use kernel::USER_ENTRY;
@@ -35,7 +37,9 @@ use elf::*;
 use io::Read;
 
 use crate::{
-    arch::processor, kernel::{USER_STACK_BOTTOM, USER_STACK_TOP}, memory::paging::PageTableEntryFlags
+    arch::processor,
+    kernel::{USER_STACK_BOTTOM, USER_STACK_TOP},
+    memory::paging::{PageTableEntry, PageTableEntryFlags, VirtualAddress},
 };
 
 #[rustfmt::skip]
@@ -51,7 +55,7 @@ pub fn kentry() {
     kernel::init();
 
     extern "C" fn helper() {
-        load_elf(c"/home/thatmagicalcat/user.elf".as_ptr());
+        load_elf(c"/home/thatmagicalcat/main.elf".as_ptr());
     }
 
     scheduler::spawn(helper, scheduler::NORMAL_PRIORITY).unwrap();
@@ -90,6 +94,7 @@ extern "C" fn load_elf(path: *const i8) {
     let entry = base_address + header.entry as usize;
     let ph_off = header.program_header_table_offset as usize;
     let ph_num = header.program_header_table_num_entires as usize;
+    let ph_ent = header.program_header_table_entry_size as usize;
 
     let elf_arc = Arc::new(elf_data);
 
@@ -106,7 +111,7 @@ extern "C" fn load_elf(path: *const i8) {
             .unwrap();
 
         for i in 0..ph_num {
-            let offset = ph_off + (i * header.program_header_table_entry_size as usize);
+            let offset = ph_off + i * ph_ent;
             let phdr: Elf64ProgramHeader = unsafe {
                 core::ptr::read_unaligned(elf_arc.as_ptr().add(offset) as *const Elf64ProgramHeader)
             };
@@ -134,16 +139,149 @@ extern "C" fn load_elf(path: *const i8) {
                 flags |= PageTableEntryFlags::NO_EXECUTE;
             }
 
-            task.vmspace.insert(start_page, end_page, flags, memory::MappingType::Elf {
-                data: Arc::clone(&elf_arc),
-                file_offset,
-                file_size,
-            }).expect("Failed to insert ELF VMA");
+            task.vmspace
+                .insert(
+                    start_page,
+                    end_page,
+                    flags,
+                    memory::MappingType::Elf {
+                        data: Arc::clone(&elf_arc),
+                        file_offset,
+                        file_size,
+                    },
+                )
+                .expect("Failed to insert ELF VMA");
         }
     });
 
+    /*
+     * usr_stack_top somewhere around here
+     *
+     * High addresses
+     * +----------------------------------------+
+     * |         INFORMATION BLOCK              |
+     * |      (actual raw string bytes)         |
+     * +----------------------------------------+
+     * | "PATH=/bin\0" <- e.g. of envp string 1 |
+     * | "USER=cat"    <- e.g. of envp string 0 |
+     * | "./usr.elf\0" <- e.g. of argv string 0 |
+     * +----------------------------------------+
+     * | 16 bytes of random data (AT_RANDOM)    |
+     * +----------------------------------------+
+     * | 0 to 15 bytes of padding               |
+     * +----------------------------------------+
+     * | auxv AT_NULL <- end of auxv            |
+     * | auxv value                             |
+     * | auxv key (AT_RANDOM)                   |
+     * | ...                                    |
+     * | auxv value (e.g. 4096)                 |
+     * | auxv key (AT_PAGESZ) <- start of auxv  |
+     * +----------------------------------------+
+     * | NULL <- end of envp array              |
+     * | envp pointers                          |
+     * +----------------------------------------+
+     * | NULL <- end of argv array              |
+     * | argv pointers                          |
+     * +----------------------------------------+
+     * | argc <- argument count                 |
+     * +----------------------------------------+
+     * Low addresses (<- final rsp)
+     * */
+
+    // map the very first page of the user stack so that we can write to it
+    let usr_stack_top = USER_STACK_TOP.0 as usize;
+    let stack_page_addr = usr_stack_top - memory::PAGE_SIZE;
+    let hhdm_offset = kernel::get_hhdm_offset();
+    let frame = memory::allocate_frame().expect("oom");
+    let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+
+    // zero out everything
+    unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
+
+    memory::paging::PageTable::active().mapper_mut().map_to(
+        VirtualAddress(stack_page_addr as _),
+        frame,
+        PageTableEntryFlags::USER_ACCESSIBLE
+            | PageTableEntryFlags::WRITABLE
+            | PageTableEntryFlags::NO_EXECUTE,
+        &mut *memory::lock_global_frame_allocator(),
+    );
+
+    let mut current_rsp = usr_stack_top;
+    let rsp = &mut current_rsp;
+
+    let push_bytes = |bytes: &[u8], rsp: &mut usize| {
+        *rsp -= bytes.len();
+        let offset = *rsp - stack_page_addr;
+        unsafe {
+            core::ptr::copy_nonoverlapping(bytes.as_ptr(), hhdm_ptr.add(offset), bytes.len());
+        }
+
+        // user-space virtual address of pushed bytes
+        *rsp
+    };
+
+    let push = |v: u64, rsp: &mut usize| {
+        *rsp -= 8;
+        let offset = *rsp - stack_page_addr;
+        unsafe { core::ptr::write_unaligned(hhdm_ptr.add(offset).cast(), v) };
+    };
+
+    // // 16 bytes of random data
+    let entropy: [u8; 16] = unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+    let at_random_ptr = push_bytes(&entropy, rsp);
+
+    let env_str = b"OS=MagicalOS\0";
+    let envp0_ptr = push_bytes(env_str, rsp);
+
+    let path_bytes = unsafe { core::ffi::CStr::from_ptr(path).to_bytes_with_nul() };
+    let argv0_ptr = push_bytes(path_bytes, rsp);
+
+    // NOTE: make sure to update this
+    // argc (1), argv (2), envp (2) + auxv (16) = 21 slots
+    let final_rsp_unaligned = *rsp - (21 * 8);
+    let final_rsp_aligned = utils::align_down(final_rsp_unaligned, 16);
+    let padding = final_rsp_unaligned - final_rsp_aligned;
+    *rsp -= padding;
+
+    // --------- push ---------
+    push(0, rsp);
+    push(auxvec::AT_NULL, rsp);
+
+    push(at_random_ptr as _, rsp);
+    push(auxvec::AT_RANDOM, rsp);
+
+    push(entry as _, rsp);
+    push(auxvec::AT_ENTRY, rsp);
+
+    push(base_address as _, rsp);
+    push(auxvec::AT_BASE, rsp);
+
+    push(memory::PAGE_SIZE as _, rsp);
+    push(auxvec::AT_PAGESZ, rsp);
+
+    push(ph_num as _, rsp);
+    push(auxvec::AT_PHNUM, rsp);
+
+    push(ph_ent as _, rsp);
+    push(auxvec::AT_PHENT , rsp);
+
+    push((ph_off + base_address) as _, rsp);
+    push(auxvec::AT_PHDR, rsp);
+
+    // push envp
+    push(0, rsp); // NULL
+    push(envp0_ptr as _, rsp);
+
+    // push argv
+    push(0, rsp); // NULL
+    push(argv0_ptr as _, rsp);
+
+    // push argc
+    push(1, rsp);
+
     log::info!("Leap of Faith!");
-    unsafe { processor::jump_to_user_fn(entry as _) }
+    unsafe { processor::jump_to_user_fn(entry as _, current_rsp) }
 }
 
 #[cfg(all(test, target_os = "none"))]

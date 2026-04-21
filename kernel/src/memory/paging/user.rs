@@ -1,7 +1,6 @@
 use crate::{
     arch::interrupts,
     kernel::{self, USER_ENTRY},
-    limine_requests::HHDM_REQUEST,
     memory::{
         self, Frame,
         paging::{L4, PageTable, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
@@ -11,7 +10,7 @@ use crate::{
 
 pub fn create_page_table() -> PhysicalAddress {
     interrupts::without_interrupts(|| {
-        let hhdm_offset = unsafe { (*HHDM_REQUEST.response).offset } as usize;
+        let hhdm_offset = kernel::get_hhdm_offset();
         let frame = memory::allocate_frame().expect("oom");
         let ptr = (frame.start_address() + hhdm_offset) as *mut u8;
 
