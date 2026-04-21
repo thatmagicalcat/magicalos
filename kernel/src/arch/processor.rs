@@ -2,7 +2,7 @@ use core::arch::{asm, naked_asm};
 
 use raw_cpuid::CpuId;
 
-use crate::{kernel::{USER_STACK_TOP}, syscall::SYSCALL_TABLE, utils};
+use crate::{syscall::SYSCALL_TABLE, utils};
 
 pub fn init() {
     let cpuid = CpuId::new();
@@ -19,9 +19,36 @@ pub fn init() {
     } else {
         panic!("MagicalOS requires the CPU feature FSGSBASE");
     }
+
+    let has_sse = cpuid
+        .get_feature_info()
+        .is_some_and(|finfo| finfo.has_sse());
+
+    if !has_sse {
+        log::error!("SSE is not supported");
+    } else {
+        log::info!("SSE is supported");
+        unsafe { enable_fpu_and_sse() };
+    }
 }
 
-pub unsafe fn jump_to_user_fn(entry_point: usize) -> ! {
+pub unsafe fn enable_fpu_and_sse() {
+    log::info!("Enabling SSE and FPU");
+
+    let mut cr0: usize;
+
+    unsafe { asm!("mov {}, cr0", out(reg) cr0) };
+    cr0 &= !(1 << 2); // clear EM
+    cr0 |= (1 << 1) | (1 << 5); // MP and NE
+    unsafe { asm!("mov cr0, {}", in(reg) cr0) };
+
+    let mut cr4: usize;
+    unsafe { asm!("mov {}, cr4", out(reg) cr4) };
+    cr4 |= (1 << 9) | (1 << 10); // OSFXSR and OSXMMEXCPT
+    unsafe { asm!("mov cr4, {}", in(reg) cr4) };
+}
+
+pub unsafe fn jump_to_user_fn(entry_point: usize, stack_ptr: usize) -> ! {
     let ds = 0x1b_usize; // GDT Index 3, Ring 3
     let cs = 0x23_usize; // GDT Index 4, Ring 3
 
@@ -29,7 +56,7 @@ pub unsafe fn jump_to_user_fn(entry_point: usize) -> ! {
         __jump_to_user_land(
             ds,
             // an arbitrary user stack, which is used by pagefault_handler for demand paging!
-            USER_STACK_TOP.0 as _,
+            stack_ptr,
             cs,
             entry_point,
             // USER_ENTRY.0 as usize | entry_point & 0xFFFusize,
