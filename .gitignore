@@ -3,8 +3,9 @@ kernel/target
 build
 isodir
 *.iso
-mlibc
 toolchain
 sysroot
 patches
+mlibc
 scripts
+initramfs/home/thatmagicalcat/*.elf

@@ -1,0 +1,15 @@
+[
+  {
+    "arguments": [
+      "clang",
+      "-I/home/thatmagicalcat/Code/rust/magicalos/sysroot/usr/include/",
+      "-ffreestanding",
+      "-nostdlib",
+      "-c",
+      "main.c",
+      "main.o"
+    ],
+    "directory": "/home/thatmagicalcat/Code/rust/magicalos/initramfs/home/thatmagicalcat/",
+    "file": "/home/thatmagicalcat/Code/rust/magicalos/initramfs/home/thatmagicalcat/main.c",
+  },
+]
