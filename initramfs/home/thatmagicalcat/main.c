@@ -4,7 +4,7 @@
 void *__dso_handle = 0;
 
 int main(int argc, char *argv[], char *envp[]) {
-    printf("Hello from MagicalOS!\n");
+    printf("Hello from the C standard library!\n\n");
 
     printf("Arguments (argc = %d):\n", argc);
 
@@ -13,13 +13,9 @@ int main(int argc, char *argv[], char *envp[]) {
     }
 
     printf("\nEnvironment Variables:\n");
-    if (envp && envp[0]) {
-        printf("  envp[0] = %s\n", envp[0]);
-    } else {
-        printf("  (None)\n");
-    }
+    printf("  envp[0] = %s\n", envp[0]);
 
-    printf("\nSuccessfully returning from main(). Goodbye!\n");
-
+    printf("\nGoodbye!\n");
     return 0;
 }
+

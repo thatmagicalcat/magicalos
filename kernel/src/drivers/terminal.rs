@@ -36,14 +36,47 @@ impl Terminal {
         self.ctx
     }
 
-    pub fn write_bytes(&mut self, buf: &[u8]) {
+    pub fn write_bytes_raw(&mut self, buf: &[u8]) {
         unsafe { flanterm::flanterm_write(self.ctx, buf.as_ptr() as _, buf.len()) };
+    }
+
+    pub fn write_bytes(&mut self, buf: &[u8]) {
+        let mut lines = buf.split(|&i| i == b'\n');
+
+        if let Some(first) = lines.next() {
+            self.write_bytes_raw(first);
+        }
+
+        for line in lines {
+            self.write_str_raw("\r\n");
+            self.write_bytes_raw(line);
+        }
+    }
+
+    fn write_str_raw(&mut self, s: &str) {
+        unsafe { flanterm::flanterm_write(self.ctx, s.as_ptr() as _, s.len() as _) };
+    }
+}
+
+impl Default for Terminal {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl core::fmt::Write for Terminal {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        unsafe { flanterm::flanterm_write(self.ctx, s.as_ptr() as _, s.len() as _) };
+        let mut lines = s.split('\n');
+
+        if let Some(first) = lines.next() {
+            self.write_str_raw(first);
+        }
+
+        for line in lines {
+            self.write_str_raw("\r\n");
+            self.write_str_raw(line);
+        }
+
         Ok(())
     }
 }

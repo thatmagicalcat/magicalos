@@ -28,8 +28,6 @@ pub mod syscall;
 pub mod testing;
 pub mod utils;
 
-use core::ops::Add;
-
 use alloc::{sync::Arc, vec::Vec};
 use kernel::USER_ENTRY;
 
@@ -99,6 +97,7 @@ extern "C" fn load_elf(path: *const i8) {
     let elf_arc = Arc::new(elf_data);
 
     scheduler::with_current_task(|task| {
+        // prevent mmaping the stack
         task.vmspace
             .insert(
                 USER_STACK_BOTTOM.0 as _,
@@ -126,8 +125,13 @@ extern "C" fn load_elf(path: *const i8) {
             let file_size = phdr.file_size as usize;
             let file_offset = phdr.offset as usize;
 
-            let start_page = utils::align_down(vaddr as usize, memory::PAGE_SIZE);
-            let end_page = utils::align_up(vaddr as usize + mem_size, memory::PAGE_SIZE);
+            let misalign = vaddr % memory::PAGE_SIZE;
+
+            let start_page = vaddr - misalign;
+            let end_page = utils::align_up(vaddr + mem_size, memory::PAGE_SIZE);
+
+            let aligned_file_offset = file_offset - misalign;
+            let aligned_file_size = file_size + misalign;
 
             let mut flags = PageTableEntryFlags::USER_ACCESSIBLE;
 
@@ -146,8 +150,8 @@ extern "C" fn load_elf(path: *const i8) {
                     flags,
                     memory::MappingType::Elf {
                         data: Arc::clone(&elf_arc),
-                        file_offset,
-                        file_size,
+                        file_offset: aligned_file_offset,
+                        file_size: aligned_file_size,
                     },
                 )
                 .expect("Failed to insert ELF VMA");
@@ -227,11 +231,12 @@ extern "C" fn load_elf(path: *const i8) {
         unsafe { core::ptr::write_unaligned(hhdm_ptr.add(offset).cast(), v) };
     };
 
-    // // 16 bytes of random data
-    let entropy: [u8; 16] = unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+    // 16 bytes of random data
+    // TODO: generate this value using a PRNG
+    let entropy: [u8; 16] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
     let at_random_ptr = push_bytes(&entropy, rsp);
 
-    let env_str = b"OS=MagicalOS\0";
+    let env_str = b"FOO=BAR\0";
     let envp0_ptr = push_bytes(env_str, rsp);
 
     let path_bytes = unsafe { core::ffi::CStr::from_ptr(path).to_bytes_with_nul() };
@@ -264,7 +269,7 @@ extern "C" fn load_elf(path: *const i8) {
     push(auxvec::AT_PHNUM, rsp);
 
     push(ph_ent as _, rsp);
-    push(auxvec::AT_PHENT , rsp);
+    push(auxvec::AT_PHENT, rsp);
 
     push((ph_off + base_address) as _, rsp);
     push(auxvec::AT_PHDR, rsp);
