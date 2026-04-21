@@ -4,35 +4,49 @@ use raw_cpuid::CpuId;
 
 use crate::{syscall::SYSCALL_TABLE, utils};
 
-pub fn init() {
-    let cpuid = CpuId::new();
-
-    let has_fsgsbase = match cpuid.get_extended_feature_info() {
-        Some(efinfo) => efinfo.has_fsgsbase(),
-        None => false,
-    };
-
-    if has_fsgsbase {
-        let mut cr4 = utils::read_cr4();
-        cr4 |= 1 << 16;
-        utils::write_cr4(cr4);
-    } else {
-        panic!("MagicalOS requires the CPU feature FSGSBASE");
-    }
-
-    let has_sse = cpuid
-        .get_feature_info()
-        .is_some_and(|finfo| finfo.has_sse());
-
-    if !has_sse {
-        log::error!("SSE is not supported");
-    } else {
-        log::info!("SSE is supported");
-        unsafe { enable_fpu_and_sse() };
-    }
+#[derive(Debug, Clone, Copy)]
+pub struct CpuFeatures {
+    pub fsgsbase: bool,
+    pub sse: bool,
 }
 
-pub unsafe fn enable_fpu_and_sse() {
+pub fn detect_cpu_features() -> CpuFeatures {
+    let cpuid = CpuId::new();
+
+    let fsgsbase = cpuid
+        .get_extended_feature_info()
+        .is_some_and(|f| f.has_fsgsbase());
+
+    let sse = cpuid.get_feature_info().is_some_and(|f| f.has_sse());
+
+    CpuFeatures { fsgsbase, sse }
+}
+
+pub fn init() {
+    let features = detect_cpu_features();
+
+    enable_fsgsbase(features);
+    enable_fpu(features);
+}
+
+fn enable_fsgsbase(features: CpuFeatures) {
+    if !features.fsgsbase {
+        panic!("MagicalOS requires FSGSBASE");
+    }
+
+    let mut cr4 = utils::read_cr4();
+    cr4 |= 1 << 16; // FSGSBASE
+    utils::write_cr4(cr4);
+
+    log::info!("FSGSBASE enabled");
+}
+
+pub fn enable_fpu(features: CpuFeatures) {
+    if !features.sse {
+        log::error!("SSE not supported — continuing anyway (this is sketchy)");
+        return;
+    }
+
     log::info!("Enabling SSE and FPU");
 
     let mut cr0: usize;

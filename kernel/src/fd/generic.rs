@@ -15,17 +15,18 @@ pub(crate) struct GenericStdout;
 
 impl IoInterface for GenericStdout {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        if log::log_enabled!(log::Level::Debug) {
-            let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
-            log::debug!("write(generic_stdout): {}", s.trim_end_matches(['\n', '\r']));
-            core::mem::forget(s);
-        }
+        // if log::log_enabled!(log::Level::Debug) {
+        //     let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
+        //     log::debug!("write(generic_stdout): {}", s.trim_end_matches(['\n', '\r']));
+        //     core::mem::forget(s);
+        // }
 
         drivers::terminal::TERMINAL
             .lock()
             .as_mut()
             .unwrap()
             .write_bytes(buf);
+
         Ok(buf.len())
     }
 }
