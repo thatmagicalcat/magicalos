@@ -54,7 +54,7 @@ struct State {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(crate) enum TaskStatus {
+pub enum TaskStatus {
     Invalid,
     Ready,
     Running,
@@ -161,7 +161,7 @@ pub(crate) struct TaskStack {
 }
 
 #[repr(align(64))]
-pub(crate) struct Task {
+pub struct Task {
     pub id: TaskId,
     pub priority: TaskPriority,
     pub status: TaskStatus,

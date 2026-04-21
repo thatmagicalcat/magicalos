@@ -6,11 +6,8 @@ use core::cell::{RefCell, UnsafeCell};
 use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
-    memory::paging::{self, PhysicalAddress, VirtualAddress},
-    scheduler::{
-        sched::Scheduler,
-        task::{Task, TaskId, TaskPriority},
-    },
+    memory::paging::{VirtualAddress, PhysicalAddress},
+    scheduler::{sched::Scheduler},
 };
 
 mod sched;

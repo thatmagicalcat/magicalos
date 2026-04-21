@@ -8,9 +8,9 @@ pub enum ObjectFileType {
     None = 0,
     /// Relocatable file
     Relocatable = 1,
-    /// Executable file
+    /// Absolute
     Executable = 2,
-    /// Shared object file
+    /// Position independent
     Dynamic = 3,
     /// Core file
     Core = 4,
@@ -71,6 +71,14 @@ pub enum Elf64ProgramHeaderType {
     LOPROC = 0x70000000,
     /// Processor-specific
     HIPROC = 0x7FFFFFFF,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[repr(u32)]
+pub enum Elf64ProgramHeaderFlag {
+    Execute = 0x1,
+    Write = 0x2,
+    Read = 0x4
 }
 
 #[derive(Debug)]
