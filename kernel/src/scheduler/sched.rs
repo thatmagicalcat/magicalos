@@ -103,11 +103,10 @@ impl Scheduler {
         interrupts::without_interrupts(|| self.current_task.borrow().stack.interrupt_top())
     }
 
-    pub fn spawn(
-        &mut self,
-        f: extern "C" fn(),
-        priority: TaskPriority,
-    ) -> Result<TaskId, &'static str> {
+    pub fn spawn<F>(&mut self, f: F, priority: TaskPriority) -> Result<TaskId, &'static str>
+    where
+        F: FnOnce() + Send + 'static,
+    {
         interrupts::without_interrupts(|| {
             let priority_no = priority.into() as usize;
 
@@ -122,7 +121,15 @@ impl Scheduler {
                 priority,
             )));
 
-            task.borrow_mut().create_stack_frame(f);
+            extern "C" fn trampoline<F: FnOnce() + Send + 'static>(closure_ptr: usize) {
+                let closure: F = unsafe { core::ptr::read(closure_ptr as _) };
+                closure();
+            }
+
+            let closure_ptr = task.borrow_mut().push_onto_stack(f);
+
+            task.borrow_mut()
+                .create_stack_frame(trampoline::<F> as _, closure_ptr);
 
             self.ready_queue.push(&task);
             self.tasks.insert(task_id, Rc::clone(&task));

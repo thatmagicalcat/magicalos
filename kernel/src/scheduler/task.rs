@@ -217,11 +217,12 @@ impl Task {
         }
     }
 
-    pub fn create_stack_frame(&mut self, entry_point: extern "C" fn()) {
+    pub fn create_stack_frame(&mut self, entry_point: usize, arg: usize) {
         let mut sp: *mut u64 = self.stack.top().as_mut_ptr();
         unsafe {
             // stack poisoning
             core::ptr::write_bytes(self.stack.bottom().as_mut_ptr::<u8>(), 0xCD, STACK_SIZE);
+
             sp = sp.offset(-1);
             *sp = leave_task as *const () as _;
 
@@ -237,11 +238,31 @@ impl Task {
             (*state).rsp = sp_before as _;
             (*state).rbp = (*state).rsp + mem::size_of::<u64>() as u64;
             (*state).gs = self.stack.top().0;
+
             (*state).rip = (entry_point as *const ()) as _;
+            (*state).rdi = arg as _;
+
             (*state).rflags = 0x1202;
 
             self.last_stack_ptr = sp as usize;
         }
+    }
+
+    pub fn push_onto_stack<T>(&mut self, data: T) -> usize {
+        let mut sp = self.last_stack_ptr;
+        if sp == 0 {
+            sp = self.stack.top().0 as usize;
+        }
+
+        let align = core::mem::align_of::<T>();
+        let size = core::mem::size_of::<T>();
+
+        sp = (sp - size) & !(align - 1);
+
+        unsafe { core::ptr::write(sp as *mut T, data) };
+
+        self.last_stack_ptr = sp;
+        sp
     }
 }
 

@@ -21,7 +21,10 @@ pub(crate) fn init() {
     unsafe { SCHEDULER = Some(UnsafeCell::new(Scheduler::new())) };
 }
 
-pub fn spawn(f: extern "C" fn(), priority: TaskPriority) -> Result<TaskId, &'static str> {
+pub fn spawn<F>(f: F, priority: TaskPriority) -> Result<TaskId, &'static str>
+where
+    F: FnOnce() + Send + 'static,
+{
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).spawn(f, priority) }
 }
 
