@@ -6,8 +6,8 @@ use core::cell::{RefCell, UnsafeCell};
 use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
-    memory::paging::{VirtualAddress, PhysicalAddress},
-    scheduler::{sched::Scheduler},
+    memory::paging::{PhysicalAddress, VirtualAddress},
+    scheduler::sched::Scheduler,
 };
 
 mod sched;
@@ -64,14 +64,9 @@ where
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).with_current_task(f) }
 }
 
-// pub fn allocate_vmm(
-//     layout: core::alloc::Layout,
-// ) -> Result<crate::memory::paging::VirtualAddress, &'static str> {
-//     unsafe { (*SCHEDULER.as_ref().unwrap().get()).allocate_vmm(layout) }
-// }
-// pub fn deallocate_vmm(address: usize, size: usize) {
-//     unsafe { (*SCHEDULER.as_ref().unwrap().get()).deallocate_vmm(address, size) };
-// }
+pub(crate) fn handle_device_not_available() {
+    unsafe { (*SCHEDULER.as_ref().unwrap().get()).handle_fpu_fault() }
+}
 
 pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };

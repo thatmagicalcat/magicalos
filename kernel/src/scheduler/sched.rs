@@ -1,9 +1,10 @@
 use core::{
     cell::RefCell,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, VecDeque},
     rc::Rc,
     sync::Arc,
@@ -14,13 +15,18 @@ use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::task::{NUM_PRIORITIES, TaskStatus},
+    scheduler::{
+        FpuState,
+        task::{NUM_PRIORITIES, TaskStatus},
+    },
     utils,
 };
 
 use super::task::{PriorityTaskQueue, Task, TaskId, TaskPriority};
 
 static TASKID_COUNTER: AtomicU64 = AtomicU64::new(0);
+/// Virtual address of the last used FpuState
+static FPU_OWNER: AtomicUsize = AtomicUsize::new(0);
 
 type RcTask = Rc<RefCell<Task>>;
 
@@ -47,6 +53,46 @@ impl Scheduler {
             finished_tasks: VecDeque::new(),
             tasks,
         }
+    }
+
+    pub(crate) fn handle_fpu_fault(&self) {
+        log::trace!("Saving/Loading FPU state");
+
+        interrupts::without_interrupts(|| {
+            let current_fpu_state_ptr =
+                &raw mut self.current_task.borrow_mut().fpu_state.0 as usize;
+            let last_fpu_owner_state_ptr = FPU_OWNER.load(Ordering::Relaxed);
+
+            unsafe { core::arch::asm!("clts", options(nomem, nostack, preserves_flags)) };
+
+            // should rarely  happens but good to be safe :)
+            if last_fpu_owner_state_ptr == current_fpu_state_ptr {
+                return;
+            }
+
+            if last_fpu_owner_state_ptr != 0 {
+                // the values in the registers are owned by the previous FPU owner
+                unsafe {
+                    core::arch::asm! {
+                        "fxsave [{}]",
+                        in(reg) last_fpu_owner_state_ptr,
+                        options(nostack, preserves_flags)
+                    };
+                }
+            }
+
+            // restore the FPU state of current task
+            unsafe {
+                core::arch::asm! {
+                    "fxrstor [{}]",
+                    in(reg) current_fpu_state_ptr,
+                    options(nostack, preserves_flags)
+                };
+            }
+
+            // current task is the new owner
+            FPU_OWNER.store(current_fpu_state_ptr, Ordering::Relaxed);
+        });
     }
 
     fn new_task_id(&self) -> TaskId {

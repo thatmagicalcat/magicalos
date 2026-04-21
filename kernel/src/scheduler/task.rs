@@ -28,6 +28,15 @@ pub const HIGH_PRIORITY: TaskPriority = TaskPriority(24);
 pub const NORMAL_PRIORITY: TaskPriority = TaskPriority(16);
 pub const LOW_PRIORITY: TaskPriority = TaskPriority(0);
 
+#[repr(C, align(16))]
+pub(crate) struct FpuState(pub [u8; 512]);
+
+impl Default for FpuState {
+    fn default() -> Self {
+        Self([0; _])
+    }
+}
+
 #[repr(C, packed)]
 struct State {
     gs: u64,
@@ -160,17 +169,17 @@ pub(crate) struct TaskStack {
 }
 
 #[repr(align(64))]
-pub struct Task {
+pub(crate) struct Task {
     pub id: TaskId,
     pub priority: TaskPriority,
     pub status: TaskStatus,
     pub last_stack_ptr: usize,
     pub stack: Box<dyn Stack>,
-
     /// The physical address of PML4 page table for this task
     pub root_page_table: PhysicalAddress,
     pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>,
     pub vmspace: VmSpace,
+    pub fpu_state: Box<FpuState>,
 }
 
 impl Task {
@@ -190,6 +199,7 @@ impl Task {
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
             fd_map,
             vmspace: VmSpace::new(),
+            fpu_state: Box::new(FpuState::default()),
         }
     }
 
@@ -203,6 +213,7 @@ impl Task {
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
             vmspace: VmSpace::new(),
             fd_map: BTreeMap::new(),
+            fpu_state: Box::new(FpuState::default()),
         }
     }
 
