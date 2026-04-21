@@ -1,5 +1,7 @@
 use core::arch::asm;
 
+use num_traits::ops::bytes;
+
 use crate::{
     arch::apic,
     bus::port::Port,
@@ -127,10 +129,10 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
     let vma = scheduler::with_current_task(|task| {
         task.vmspace
             .find(virtual_addr)
-            .map(|(start, vma)| (start, *vma))
+            .map(|(start, vma)| (start, vma.clone()))
     });
 
-    if let Some((start, Vma { end, flags, ty })) = vma {
+    if let Some((vma_start_addr, Vma { end, flags, ty })) = vma {
         if error_code.contains(PageFaultErrorCode::CAUSED_BY_WRITE)
             && !flags.contains(PageTableEntryFlags::WRITABLE)
         {
@@ -142,21 +144,44 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
             scheduler::exit();
         }
 
-        // NOTE: this will give us an unimplemented error in future!
-        #[allow(irrefutable_let_patterns)]
-        let MappingType::Anonymous = ty else {
-            unimplemented!("Only anonymous mappings are supported for now");
-        };
-
-        // NOTE: we only allocate & map one frame at a time
+        // we only allocate & map one frame at a time
         let frame = allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
         let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
 
         // zero everything out
         unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
 
+        match ty {
+            MappingType::Anonymous => {}
+            MappingType::Elf {
+                ref data,
+                file_offset,
+                file_size,
+            } => {
+                // NOTE: we have already zeroed-out the page and it automatically covers .bss
+                // section
+
+                let page_vaddr = utils::align_down(virtual_addr, memory::PAGE_SIZE);
+                let offset_in_vma = page_vaddr - vma_start_addr;
+
+                // do we still have data to copy?
+                if offset_in_vma < file_size {
+                    let file_src_offset = file_offset + offset_in_vma;
+                    let bytes_to_copy = (file_size - offset_in_vma).min(memory::PAGE_SIZE);
+
+                    unsafe {
+                        core::ptr::copy_nonoverlapping(
+                            data.as_ptr().add(file_src_offset),
+                            hhdm_ptr,
+                            bytes_to_copy,
+                        );
+                    }
+                }
+            }
+        }
+
         log::debug!(
-            "Lazy mapping: {virtual_addr:#x} -> {:#x} (VMA: {start:#x}-{end:#x}, flags: {flags:?})",
+            "Lazy mapping: {virtual_addr:#x} -> {:#x} (VMA: {vma_start_addr:#x}-{end:#x}, {ty:?})",
             frame.start_address(),
         );
 

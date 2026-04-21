@@ -1,6 +1,6 @@
 use core::alloc::Layout;
 
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 use crate::{kernel::USER_STACK_BOTTOM, memory::paging::PageTableEntryFlags, utils};
 
@@ -24,16 +24,30 @@ impl core::fmt::Display for Error {
 
 impl core::error::Error for Error {}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Vma {
     pub end: usize,
     pub flags: PageTableEntryFlags,
     pub ty: MappingType,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone)]
 pub enum MappingType {
     Anonymous,
+    Elf {
+        data: Arc<Vec<u8>>,
+        file_offset: usize,
+        file_size: usize,
+    },
+}
+
+impl core::fmt::Debug for MappingType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Anonymous => write!(f, "Anonymous"),
+            Self::Elf { .. } => f.debug_struct("Elf").finish_non_exhaustive(),
+        }
+    }
 }
 
 impl VmSpace {
