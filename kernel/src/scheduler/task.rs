@@ -12,6 +12,7 @@ use alloc::{
 
 use crate::{
     fd::{self, FileDescriptor, STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO},
+    fs::{self, VfsNodeId},
     io::IoInterface,
     kernel,
     memory::{
@@ -120,7 +121,7 @@ impl PriorityTaskQueue {
     }
 
     pub fn push(&mut self, task: &Rc<RefCell<Task>>) {
-        let priority = task.borrow().priority.into() as usize;
+        let priority = task.borrow().cfg.priority.into() as usize;
         self.priority_bitmap |= 1 << priority;
         self.queues[priority].push_back(Rc::clone(task));
     }
@@ -174,7 +175,6 @@ pub(crate) struct TaskStack {
 #[repr(align(64))]
 pub(crate) struct Task {
     pub id: TaskId,
-    pub priority: TaskPriority,
     pub status: TaskStatus,
     pub last_stack_ptr: usize,
     pub stack: Box<dyn Stack>,
@@ -182,13 +182,79 @@ pub(crate) struct Task {
     pub fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>>,
     pub vmspace: VmSpace,
     pub fpu_state: Box<FpuState>,
+    pub cfg: TaskConfig,
+}
+
+pub struct TaskConfig {
+    pub priority: TaskPriority,
     pub cwd: String,
+    cwd_id: Option<fs::VfsNodeId>,
     pub argv: Vec<CString>,
     pub envp: Vec<CString>,
 }
 
+impl TaskConfig {
+    pub fn with_cwd(mut self, cwd: String) -> Self {
+        self.cwd = cwd;
+        self
+    }
+
+    pub const fn with_priority(mut self, priority: TaskPriority) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    pub fn with_argv<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut Vec<CString>),
+    {
+        f(&mut self.argv);
+        self
+
+    }
+
+    pub fn with_envp<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut Vec<CString>),
+    {
+        f(&mut self.envp);
+        self
+    }
+
+    pub fn get_cwd_id(&mut self) -> VfsNodeId {
+        if let Some(cwd_id) = self.cwd_id {
+            return cwd_id;
+        }
+
+        let locked = fs::VFS.lock();
+        if matches!(self.cwd.as_str(), "" | "/") {
+            self.cwd_id = Some(locked.get_root_node_id());
+        } else {
+            self.cwd_id = Some(
+                locked
+                    .resolve_path(locked.get_root_node_id(), &self.cwd)
+                    .expect("cwd does not exist"),
+            );
+        }
+
+        self.cwd_id.unwrap()
+    }
+}
+
+impl Default for TaskConfig {
+    fn default() -> Self {
+        Self {
+            priority: NORMAL_PRIORITY,
+            cwd: String::from("/"),
+            cwd_id: None,
+            argv: Default::default(),
+            envp: Default::default(),
+        }
+    }
+}
+
 impl Task {
-    pub fn new(id: TaskId, status: TaskStatus, priority: TaskPriority) -> Self {
+    pub fn new(id: TaskId, status: TaskStatus, cfg: TaskConfig) -> Self {
         let mut fd_map: BTreeMap<FileDescriptor, Arc<dyn IoInterface>> = BTreeMap::new();
 
         fd_map.insert(STDIN_FILENO, Arc::new(fd::generic::GenericStdin));
@@ -198,16 +264,13 @@ impl Task {
         Self {
             id,
             status,
-            priority,
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
             fd_map,
             vmspace: VmSpace::new(),
             fpu_state: Box::new(FpuState::default()),
-            cwd: String::new(),
-            argv: Vec::new(),
-            envp: Vec::new(),
+            cfg,
         }
     }
 
@@ -215,16 +278,13 @@ impl Task {
         Self {
             id,
             status: TaskStatus::Idle,
-            priority: LOW_PRIORITY,
             last_stack_ptr: 0,
             stack: Box::new(TaskStack::new()),
             root_page_table: kernel::get_kernel_page_table().get_physical_address(),
             vmspace: VmSpace::new(),
             fd_map: BTreeMap::new(),
             fpu_state: Box::new(FpuState::default()),
-            cwd: String::new(),
-            argv: Vec::new(),
-            envp: Vec::new(),
+            cfg: TaskConfig::default().with_priority(LOW_PRIORITY),
         }
     }
 

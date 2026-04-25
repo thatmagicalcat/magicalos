@@ -3,7 +3,7 @@
 #![warn(clippy::missing_const_for_fn)]
 #![feature(custom_test_frameworks)]
 #![feature(linked_list_cursors)]
-#![test_runner(crate::test_runner)]
+#![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 extern crate alloc;
@@ -28,6 +28,12 @@ pub mod syscall;
 pub mod testing;
 pub mod utils;
 
+use alloc::string::ToString;
+
+use crate::scheduler::TaskConfig;
+#[cfg(test)]
+use crate::testing::test_runner;
+
 #[rustfmt::skip]
 pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
     #[cfg(log_level = "trace")] { log::LevelFilter::Trace }
@@ -42,15 +48,8 @@ pub fn kentry() {
 
     let path = c"/home/thatmagicalcat/main.elf";
     scheduler::spawn(
-        move || {
-            scheduler::with_current_task(|task| {
-                task.envp.push(c"FOO=BAR".into());
-                task.argv.push(path.into());
-            });
-
-            elf::run(path.to_str().unwrap());
-        },
-        scheduler::NORMAL_PRIORITY,
+        move || elf::run(path.to_str().unwrap()),
+        TaskConfig::default().with_cwd("/home/thatmagicalcat".to_string()),
     )
     .unwrap();
 
@@ -60,7 +59,7 @@ pub fn kentry() {
             async_rt.spawn(drivers::keyboard::handle_keypresses());
             async_rt.run();
         },
-        scheduler::REALTIME_PRIORITY,
+        TaskConfig::default().with_priority(scheduler::REALTIME_PRIORITY),
     )
     .unwrap();
 
@@ -80,7 +79,7 @@ pub extern "C" fn kmain() -> ! {
 
 #[cfg(all(test, target_os = "none"))]
 #[panic_handler]
-fn panic_handler(info: &PanicInfo) -> ! {
+fn panic_handler(info: &core::panic::PanicInfo) -> ! {
     testing::test_panic_handler(info)
 }
 

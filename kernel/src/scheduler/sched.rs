@@ -15,7 +15,10 @@ use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::task::{NUM_PRIORITIES, TaskStatus},
+    scheduler::{
+        TaskConfig,
+        task::{NUM_PRIORITIES, TaskStatus},
+    },
     utils,
 };
 
@@ -100,23 +103,19 @@ impl Scheduler {
         interrupts::without_interrupts(|| self.current_task.borrow().stack.interrupt_top())
     }
 
-    pub fn spawn<F>(&mut self, f: F, priority: TaskPriority) -> Result<TaskId, &'static str>
+    pub fn spawn<F>(&mut self, f: F, cfg: TaskConfig) -> Result<TaskId, &'static str>
     where
         F: FnOnce() + Send + 'static,
     {
         interrupts::without_interrupts(|| {
-            let priority_no = priority.into() as usize;
+            let priority_no = cfg.priority.into() as usize;
 
             if priority_no >= NUM_PRIORITIES {
                 return Err("Priority must be between 0 and NUM_PRIORITIES - 1");
             }
 
             let task_id = self.new_task_id();
-            let task = Rc::new(RefCell::new(Task::new(
-                task_id,
-                TaskStatus::Ready,
-                priority,
-            )));
+            let task = Rc::new(RefCell::new(Task::new(task_id, TaskStatus::Ready, cfg)));
 
             extern "C" fn trampoline<F: FnOnce() + Send + 'static>(closure_ptr: usize) {
                 let closure: F = unsafe { core::ptr::read(closure_ptr as _) };
@@ -130,11 +129,7 @@ impl Scheduler {
             self.ready_queue.push(&task);
             self.tasks.insert(task_id, Rc::clone(&task));
 
-            log::info!(
-                "Spawned task with ID {:?} and priority {:?}",
-                task_id,
-                priority,
-            );
+            log::info!("Spawned task with ID {task_id:?} and priority {priority_no:?}",);
 
             Ok(task_id)
         })
@@ -215,7 +210,7 @@ impl Scheduler {
 
         let (current_id, current_status, current_sp, current_priority) = {
             let mut b = self.current_task.borrow_mut();
-            (b.id, b.status, &raw mut b.last_stack_ptr, b.priority)
+            (b.id, b.status, &raw mut b.last_stack_ptr, b.cfg.priority)
         };
 
         let mut next_task: Option<RcTask>;

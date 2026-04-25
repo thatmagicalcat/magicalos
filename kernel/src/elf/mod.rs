@@ -15,7 +15,7 @@ pub fn run(path: &str) {
     let (load_info, rsp) = scheduler::with_current_task(|task| {
         let load_info = loader::load_elf(task, &elf_arc);
         let mut stack = loader::StackBuilder::setup_user_stack(kernel::USER_STACK_TOP.0 as _);
-        stack.create_auxv(&load_info, &task.argv, &task.envp);
+        stack.create_auxv(&load_info, &task.cfg.argv, &task.cfg.envp);
         (load_info, stack.rsp)
     });
 
