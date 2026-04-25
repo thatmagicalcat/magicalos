@@ -9,7 +9,7 @@ use crate::fs::SeekFrom;
 
 pub type Result<T> = core::result::Result<T, Error>;
 
-pub(crate) trait IoInterface: Sync + Send + Debug {
+pub trait IoInterface: Sync + Send + Debug {
     /// Attempts to read `len` bytes from the object pointed by the descriptor
     fn read(&self, _buf: &mut [u8]) -> Result<usize> {
         log::error!("No read implementation");

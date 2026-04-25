@@ -10,8 +10,11 @@ pub enum Error {
     InvalidValue = errno::EINVAL as _,
     BadFileDescriptor = errno::EBADF as _,
     NotADirectory = errno::ENOTDIR as _,
+    NotAFile = errno::EISDIR as _,
     TooManyOpenFiles = errno::EMFILE as _,
     WriteAllEOF = errno::EPIPE as _,
+    AlreadyExists = errno::EEXIST as _,
+    StaleId = errno::ESTALE as _,
 }
 
 impl core::fmt::Display for Error {

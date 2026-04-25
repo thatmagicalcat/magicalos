@@ -1,26 +1,25 @@
 #![allow(static_mut_refs)]
 
-use alloc::{sync::Arc, vec::Vec};
-use core::{any::Any, fmt::Debug};
-use enum_dispatch::enum_dispatch;
+use core::{fmt::Debug};
 
 use crate::{
-    fd::FileDescriptor,
-    fs::tar::{TarEntiresIterator, TarEntry},
-    io::{self, IoInterface},
-    limine_requests, scheduler,
+    dbg_println, fd::FileDescriptor, fs::tar::{TarEntiresIterator, TarEntry}, io::{self}, limine_requests, scheduler, synch::Spinlock
 };
-use vfs::{VfsDirectory, VfsFile};
 
+pub mod tar;
 mod data_handle;
 mod error;
 mod file;
-pub mod tar;
 mod vfs;
 
+use vfs::*;
+
+pub use vfs::VfsNodeId;
 pub use file::*;
 
-static mut VFS_ROOT: Option<vfs::VfsRoot> = None;
+lazy_static::lazy_static! {
+    pub static ref VFS: Spinlock<Vfs> = Spinlock::new(Vfs::new());
+}
 
 fn load_ramfs() -> TarEntiresIterator<'static> {
     log::info!("Loading ramfs module");
@@ -46,10 +45,11 @@ fn load_ramfs() -> TarEntiresIterator<'static> {
     TarEntiresIterator::new(ramfs_module_raw)
 }
 
-pub fn init_vfs() {
+pub fn init_ramfs() {
     log::info!("Initializing VFS...");
 
-    let root = vfs::VfsRoot::new();
+    let mut vfs = VFS.lock();
+    let root = vfs.get_root_node_id();
     let ramfs = load_ramfs();
 
     for entry in ramfs {
@@ -60,12 +60,14 @@ pub fn init_vfs() {
                     &name[1..],
                     data.len()
                 );
-                root.mount(&name[1..], data).expect("failed to mount");
+
+                vfs.mount(root, & name[1..], data).expect("failed to mount");
             }
 
+            TarEntry::Directory { name: "./" } => {}
             TarEntry::Directory { name } => {
                 log::debug!("init_vfs(): creating directory {}", &name[1..]);
-                root.mkdir(&name[1..]).expect("failed to create directory");
+                vfs.mkdir(root, &name[1..]).expect("failed to create directory");
             }
 
             TarEntry::Other { .. } => log::error!("Other tar entry types are not supported yet :("),
@@ -73,27 +75,24 @@ pub fn init_vfs() {
     }
 
     log::info!("Kernel VFS Tree:");
-    root.lsdir().unwrap();
 
-    unsafe { VFS_ROOT = Some(root) };
+    dbg_println!("/");
+    vfs.tree_lsdir(root);
 }
 
 pub fn open(path: &str, options: OpenOptions) -> io::Result<FileDescriptor> {
-    let root = unsafe { VFS_ROOT.as_ref().expect("VFS not initialized") };
-    let interface = root.open(path, options)?;
-    scheduler::add_io_interface(interface)
-}
-
-pub fn lsdir() -> io::Result<()> {
-    unsafe { VFS_ROOT.as_ref().expect("VFS not initialized").lsdir() }
+    let cwd = scheduler::with_current_task(|task| task.cfg.get_cwd_id());
+    scheduler::add_io_interface(VFS.lock().open(cwd, path, options)?)
 }
 
 pub fn mkdir(path: &str) -> io::Result<()> {
-    unsafe { VFS_ROOT.as_mut().expect("VFS not initialized").mkdir(path) }
+    let cwd = scheduler::with_current_task(|task| task.cfg.get_cwd_id());
+    VFS.lock().mkdir(cwd, path).map(|_| ())
 }
 
 pub fn mount(path: &str, region: &'static [u8]) -> io::Result<()> {
-    unsafe { VFS_ROOT.as_mut().expect("VFS not initialized").mount(path, region) }
+    let cwd = scheduler::with_current_task(|task| task.cfg.get_cwd_id());
+    VFS.lock().mount(cwd, path, region).map(|_| ())
 }
 
 pub enum SeekFrom {
@@ -116,39 +115,4 @@ bitflags::bitflags! {
 
         const RW = Self::RDONLY.bits() | Self::WRONLY.bits();
     }
-}
-
-pub(crate) enum NodeKind {
-    File,
-    Directory,
-}
-
-#[enum_dispatch]
-#[derive(Debug)]
-pub(crate) enum VfsNodeEnum {
-    VfsDirectory,
-    VfsFile,
-}
-
-#[enum_dispatch(VfsNodeEnum)]
-trait VfsNode: Send + Sync + Debug {
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn get_node_kind(&self) -> NodeKind;
-}
-
-trait VfsDirectoryNode {
-    fn mkdir(&mut self, components: &mut Vec<&str>);
-    fn mount(&mut self, components: &mut Vec<&str>, region: &'static [u8]) -> io::Result<()>;
-    fn open(
-        &mut self,
-        components: &mut Vec<&str>,
-        options: OpenOptions,
-    ) -> io::Result<Arc<dyn IoInterface>>;
-    /// Recursively print all the nodes inside this directory in a tree format
-    fn tree_lsdir(&self);
-}
-
-trait VfsFileNode {
-    fn get_handle(&self, flags: OpenOptions) -> io::Result<Arc<dyn IoInterface>>;
 }

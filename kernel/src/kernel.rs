@@ -62,7 +62,7 @@ pub fn init() {
     memory::init_vmm();
     syscall::init();
     drivers::terminal::init();
-    fs::init_vfs();
+    fs::init_ramfs();
 
     let acpi_tables = parse_acpi_tables();
     ioapic::register_ioapics(&acpi_tables, &mut *allocator, kernel_page_table);
