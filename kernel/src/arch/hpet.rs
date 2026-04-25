@@ -97,10 +97,8 @@ impl Hpet {
     }
 
     fn enable(&self) {
-        unsafe {
-            let mut config = self.read_config();
-            config |= 1; // set bit 0 to enable HPET
-            self.write_config(config);
-        }
+        let mut config = self.read_config();
+        config |= 1; // set bit 0 to enable HPET
+        self.write_config(config);
     }
 }

@@ -4,8 +4,8 @@
 extern crate alloc;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn kmain() -> ! {
-    magicalos_kernel::kentry();
+pub extern "C" fn kernel_main() -> ! {
+    magicalos_kernel::kernel_entry();
 
     loop {
         unsafe { core::arch::asm!("hlt") }

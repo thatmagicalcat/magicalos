@@ -11,7 +11,7 @@ pub fn run(sh: &Shell, quiet: bool) -> Result<()> {
 
     let root = project_root();
     let kernel_dir = root.join("kernel");
-    let test_target = root.join("target/x86_64/release/deps/kernel");
+    let test_target = root.join("target/x86_64/release/deps/magicalos_kernel");
     let target_dir = root.join("target");
 
     {

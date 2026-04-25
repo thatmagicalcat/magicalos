@@ -43,7 +43,7 @@ pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
     #[cfg(log_level = "error")] { log::LevelFilter::Error }
 };
 
-pub fn kentry() {
+pub fn kernel_entry() {
     kernel::init();
 
     let path = c"/home/thatmagicalcat/main.elf";
