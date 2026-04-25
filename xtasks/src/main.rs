@@ -3,7 +3,7 @@ use std::env;
 use xshell::Shell;
 
 mod buildenv;
-mod iso;
+mod mlibc;
 mod kernel;
 mod qemu;
 mod test;
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
         "s" | "setup" => buildenv::setup(&sh, quiet)?,
         "q" | "qemu" => qemu::run(&sh)?,
         "t" | "test" => test::run(&sh, quiet)?,
-        "iso" => iso::create(&sh, quiet)?,
+        "mlibc" => mlibc::setup(&sh, quiet)?,
 
         "make" => {
             kernel::build(&sh, quiet)?;
@@ -43,7 +43,8 @@ fn main() -> Result<()> {
         }
 
         "clean" => {
-            iso::clean(&sh)?;
+            kernel::clean(&sh)?;
+            buildenv::clean(&sh)?;
             clean(&sh)?;
         }
 
@@ -61,11 +62,11 @@ fn print_usage() {
     eprintln!("[xtask]:     help, h   - prints this message");
     eprintln!("[xtask]:     make      - build & run the entire project");
     eprintln!("[xtask]:     kernel, k - build kernel");
-    eprintln!("[xtask]:     setup, s  - setup build environment");
-    eprintln!("[xtask]:     iso       - build ISO image");
+    eprintln!("[xtask]:     setup, s  - setup build environment & make ISO");
     eprintln!("[xtask]:     test, t   - build and run kernel tests");
     eprintln!("[xtask]:     run, r    - build & run the OS in QEMU");
     eprintln!("[xtask]:     qemu, q   - run the ISO in QEMU");
+    eprintln!("[xtask]:     mlibc     - build and setup mlibc");
     eprintln!("[xtask]:     clean     - remove all the build artifacts");
     eprintln!("[xtask]: Flag(s):");
     eprintln!("[xtask]:     --quiet/q - supress build script messages");
