@@ -28,11 +28,14 @@ pub mod syscall;
 pub mod testing;
 pub mod utils;
 
-use alloc::string::ToString;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 
-use crate::scheduler::TaskConfig;
 #[cfg(test)]
 use crate::testing::test_runner;
+use crate::{io::Read, scheduler::TaskConfig};
 
 #[rustfmt::skip]
 pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
@@ -46,10 +49,31 @@ pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
 pub fn kernel_entry() {
     kernel::init();
 
-    let path = c"/home/thatmagicalcat/main.elf";
     scheduler::spawn(
-        move || elf::run(path.to_str().unwrap()),
-        TaskConfig::default().with_cwd("/home/thatmagicalcat".to_string()),
+        || {
+            arch::hpet::HPET
+                .get()
+                .unwrap()
+                .busy_wait(core::time::Duration::from_secs(1));
+            fs::VFS.tree_lsdir(fs::VFS.get_root_node_id()).unwrap();
+
+            // message.txt is created by message.txt
+            let mut f = fs::File::open("/home/thatmagicalcat/message.txt").expect("failed to open");
+            let mut buf = [0; 100];
+            let len = f.read(&mut buf).unwrap();
+
+            log::info!(
+                "message.txt content: {}",
+                core::str::from_utf8(&buf[..len]).unwrap()
+            );
+        },
+        TaskConfig::default(),
+    )
+    .unwrap();
+
+    scheduler::spawn(
+        move || elf::run("/home/thatmagicalcat/fs.elf"),
+        TaskConfig::default().with_cwd("/home/thatmagicalcat/".to_string()),
     )
     .unwrap();
 
@@ -66,7 +90,7 @@ pub fn kernel_entry() {
     scheduler::reschedule();
 
     loop {
-        unsafe { core::arch::asm!("hlt") }
+        unsafe { core::arch::asm!("hlt") };
     }
 }
 

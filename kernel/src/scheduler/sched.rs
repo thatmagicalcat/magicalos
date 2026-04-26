@@ -193,7 +193,7 @@ impl Scheduler {
         // if we have finished tasks -> drop tasks -> deallocate stack (implicit)
         while let Some(task_id) = self.finished_tasks.pop_front() {
             if self.tasks.remove(&task_id).is_some() {
-                // log::trace!("Dropping task with id {:?}", task_id);
+                log::trace!("Dropping task with id {:?}", task_id);
                 // ref count - 1
             } else {
                 log::error!("Failed to drop task with id {:?} - not found", task_id);
@@ -216,7 +216,7 @@ impl Scheduler {
             && current_status != TaskStatus::Running
             && current_status != TaskStatus::Idle
         {
-            // log::trace!("Switch to idle task");
+            log::trace!("Switch to idle task");
             next_task = Some(Arc::clone(&self.idle_task));
         }
 
@@ -231,10 +231,10 @@ impl Scheduler {
                 self.current_task.lock().status = TaskStatus::Ready;
                 self.ready_queue.push(&self.current_task);
             } else if current_status == TaskStatus::Finished {
-                // log::trace!(
-                //     "Task with id {:?} has finished, adding to finished tasks",
-                //     current_id
-                // );
+                log::trace!(
+                    "Task with id {:?} has finished, adding to finished tasks",
+                    current_id
+                );
 
                 self.finished_tasks.push_back(current_id);
             }
@@ -251,7 +251,7 @@ impl Scheduler {
     pub fn block_current_task(&self) -> ArcTask {
         interrupts::without_interrupts(|| {
             if self.current_task.lock().status == TaskStatus::Running {
-                // log::trace!("Block task with id {:?}", self.current_task.lock().id);
+                log::trace!("Block task with id {:?}", self.current_task.lock().id);
 
                 self.current_task.lock().status = TaskStatus::Blocked;
                 Arc::clone(&self.current_task)
@@ -266,7 +266,7 @@ impl Scheduler {
 
     pub fn wakeup_task(&mut self, task: &ArcTask) {
         if task.lock().status == TaskStatus::Blocked {
-            // log::trace!("Waking up task id: {:?}", task.lock().id);
+            log::trace!("Waking up task id: {:?}", task.lock().id);
 
             task.lock().status = TaskStatus::Ready;
             self.ready_queue.push(task);
@@ -278,7 +278,7 @@ impl Scheduler {
             if let Some(task) = self.tasks.get(&id)
                 && task.lock().status == TaskStatus::Blocked
             {
-                // log::trace!("Waking up OS task id: {:?}", id);
+                log::trace!("Waking up OS task id: {:?}", id);
                 task.lock().status = TaskStatus::Ready;
                 self.ready_queue.push(task);
             }

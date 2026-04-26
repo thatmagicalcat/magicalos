@@ -20,6 +20,7 @@ pub fn run(sh: &Shell) -> Result<()> {
             -debugcon stdio
             -cpu host
             -display gtk,zoom-to-fit=off,show-menubar=off
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04
         "
     )
     .run()?;

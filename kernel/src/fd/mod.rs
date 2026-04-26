@@ -1,3 +1,5 @@
+use alloc::sync::Arc;
+
 use crate::{io, scheduler};
 
 pub mod generic;
