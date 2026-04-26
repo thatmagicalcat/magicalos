@@ -1,13 +1,14 @@
 #![allow(static_mut_refs)]
 
-use alloc::{rc::Rc, sync::Arc};
-use core::cell::{RefCell, UnsafeCell};
+use alloc::sync::Arc;
+use core::cell::UnsafeCell;
 
 use crate::{
     fd::FileDescriptor,
     io::{self, IoInterface},
     memory::paging::{PhysicalAddress, VirtualAddress},
     scheduler::sched::Scheduler,
+    synch::Spinlock,
 };
 
 mod sched;
@@ -44,7 +45,7 @@ pub(crate) fn get_current_interrupt_stack() -> VirtualAddress {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).get_current_interrupt_stack() }
 }
 
-pub(crate) fn block_current_task() -> Rc<RefCell<Task>> {
+pub(crate) fn block_current_task() -> Arc<Spinlock<Task>> {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).block_current_task() }
 }
 
@@ -71,7 +72,7 @@ pub(crate) fn handle_device_not_available() {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).handle_fpu_fault() }
 }
 
-pub(crate) fn wakeup_task(task: &Rc<RefCell<Task>>) {
+pub(crate) fn wakeup_task(task: &Arc<Spinlock<Task>>) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).wakeup_task(task) };
 }
 

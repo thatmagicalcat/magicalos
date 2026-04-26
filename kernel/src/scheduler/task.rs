@@ -1,10 +1,9 @@
-use core::{cell::RefCell, mem, ops::Range};
+use core::{mem, ops::Range};
 
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, VecDeque},
     ffi::CString,
-    rc::Rc,
     string::String,
     sync::Arc,
     vec::Vec,
@@ -21,7 +20,7 @@ use crate::{
             L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress,
         },
     },
-    scheduler,
+    scheduler, synch::Spinlock,
 };
 
 pub const STACK_SIZE: usize = 0x3000;
@@ -108,7 +107,7 @@ impl TaskPriority {
 }
 
 pub(crate) struct PriorityTaskQueue {
-    queues: [VecDeque<Rc<RefCell<Task>>>; NUM_PRIORITIES],
+    queues: [VecDeque<Arc<Spinlock<Task>>>; NUM_PRIORITIES],
     priority_bitmap: usize,
 }
 
@@ -120,13 +119,13 @@ impl PriorityTaskQueue {
         }
     }
 
-    pub fn push(&mut self, task: &Rc<RefCell<Task>>) {
-        let priority = task.borrow().cfg.priority.into() as usize;
+    pub fn push(&mut self, task: &Arc<Spinlock<Task>>) {
+        let priority = task.lock().cfg.priority.into() as usize;
         self.priority_bitmap |= 1 << priority;
-        self.queues[priority].push_back(Rc::clone(task));
+        self.queues[priority].push_back(Arc::clone(task));
     }
 
-    fn pop_from_queue(&mut self, queue_index: usize) -> Option<Rc<RefCell<Task>>> {
+    fn pop_from_queue(&mut self, queue_index: usize) -> Option<Arc<Spinlock<Task>>> {
         let task = self.queues[queue_index].pop_front();
         if self.queues[queue_index].is_empty() {
             self.priority_bitmap &= !(1 << queue_index);
@@ -136,7 +135,7 @@ impl PriorityTaskQueue {
     }
 
     /// Pop the next task, which has a higher or the same priority as `priority`.
-    pub fn pop_with_priority(&mut self, priority: TaskPriority) -> Option<Rc<RefCell<Task>>> {
+    pub fn pop_with_priority(&mut self, priority: TaskPriority) -> Option<Arc<Spinlock<Task>>> {
         if self.priority_bitmap == 0 {
             return None;
         }
@@ -149,7 +148,7 @@ impl PriorityTaskQueue {
         None
     }
 
-    pub fn pop(&mut self) -> Option<Rc<RefCell<Task>>> {
+    pub fn pop(&mut self) -> Option<Arc<Spinlock<Task>>> {
         if self.priority_bitmap == 0 {
             return None;
         }

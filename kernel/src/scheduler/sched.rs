@@ -1,53 +1,45 @@
 use core::{
-    cell::RefCell,
     sync::atomic::{AtomicU64, AtomicUsize, Ordering},
 };
 
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, VecDeque},
-    rc::Rc,
     sync::Arc,
 };
 
 use crate::{
-    arch::interrupts,
-    fd::FileDescriptor,
-    io::{self, IoInterface},
-    memory::paging::{PhysicalAddress, VirtualAddress},
-    scheduler::{
+    arch::interrupts, fd::FileDescriptor, io::{self, IoInterface}, memory::paging::{PhysicalAddress, VirtualAddress}, scheduler::{
         TaskConfig,
         task::{NUM_PRIORITIES, TaskStatus},
-    },
-    utils,
+    }, synch::Spinlock, utils
 };
 
-use super::task::{PriorityTaskQueue, Task, TaskId, TaskPriority};
+use super::task::{PriorityTaskQueue, Task, TaskId};
 
 static TASKID_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// Virtual address of the last used FpuState
 static FPU_OWNER: AtomicUsize = AtomicUsize::new(0);
 
-type RcTask = Rc<RefCell<Task>>;
+type ArcTask = Arc<Spinlock<Task>>;
 
 pub(crate) struct Scheduler {
-    current_task: RcTask,
-    idle_task: RcTask,
+    current_task: ArcTask,
+    idle_task: ArcTask,
     ready_queue: PriorityTaskQueue,
     finished_tasks: VecDeque<TaskId>,
-    tasks: BTreeMap<TaskId, RcTask>,
+    tasks: BTreeMap<TaskId, ArcTask>,
 }
 
 impl Scheduler {
     pub fn new() -> Scheduler {
         let task_id = TaskId::new(TASKID_COUNTER.fetch_add(1, Ordering::SeqCst));
-        let idle_task = Rc::new(RefCell::new(Task::new_idle(task_id)));
+        let idle_task = Arc::new(Spinlock::new(Task::new_idle(task_id)));
         let mut tasks = BTreeMap::new();
 
-        tasks.insert(task_id, Rc::clone(&idle_task));
+        tasks.insert(task_id, Arc::clone(&idle_task));
 
         Self {
-            current_task: Rc::clone(&idle_task),
+            current_task: Arc::clone(&idle_task),
             idle_task,
             ready_queue: PriorityTaskQueue::new(),
             finished_tasks: VecDeque::new(),
@@ -60,7 +52,7 @@ impl Scheduler {
 
         interrupts::without_interrupts(|| {
             let current_fpu_state_ptr =
-                &raw mut self.current_task.borrow_mut().fpu_state.0 as usize;
+                &raw mut self.current_task.lock().fpu_state.0 as usize;
             let last_fpu_owner_state_ptr = FPU_OWNER.load(Ordering::Relaxed);
 
             unsafe { core::arch::asm!("clts", options(nomem, nostack, preserves_flags)) };
@@ -100,7 +92,7 @@ impl Scheduler {
     }
 
     pub fn get_current_interrupt_stack(&self) -> VirtualAddress {
-        interrupts::without_interrupts(|| self.current_task.borrow().stack.interrupt_top())
+        interrupts::without_interrupts(|| self.current_task.lock().stack.interrupt_top())
     }
 
     pub fn spawn<F>(&mut self, f: F, cfg: TaskConfig) -> Result<TaskId, &'static str>
@@ -115,19 +107,19 @@ impl Scheduler {
             }
 
             let task_id = self.new_task_id();
-            let task = Rc::new(RefCell::new(Task::new(task_id, TaskStatus::Ready, cfg)));
+            let task = Arc::new(Spinlock::new(Task::new(task_id, TaskStatus::Ready, cfg)));
 
             extern "C" fn trampoline<F: FnOnce() + Send + 'static>(closure_ptr: usize) {
                 let closure: F = unsafe { core::ptr::read(closure_ptr as _) };
                 closure();
             }
 
-            let closure_ptr = task.borrow_mut().push_onto_stack(f);
-            task.borrow_mut()
+            let closure_ptr = task.lock().push_onto_stack(f);
+            task.lock()
                 .create_stack_frame(trampoline::<F> as *const () as _, closure_ptr);
 
             self.ready_queue.push(&task);
-            self.tasks.insert(task_id, Rc::clone(&task));
+            self.tasks.insert(task_id, Arc::clone(&task));
 
             log::info!("Spawned task with ID {task_id:?} and priority {priority_no:?}",);
 
@@ -140,7 +132,7 @@ impl Scheduler {
         F: for<'a> FnOnce(&'a mut Task) -> T,
     {
         interrupts::without_interrupts(|| {
-            let mut task = self.current_task.borrow_mut();
+            let mut task = self.current_task.lock();
             f(&mut task)
         })
     }
@@ -148,7 +140,7 @@ impl Scheduler {
     pub(crate) fn get_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
         interrupts::without_interrupts(|| {
             self.current_task
-                .borrow()
+                .lock()
                 .fd_map
                 .get(&fd)
                 .map(Arc::clone)
@@ -162,11 +154,11 @@ impl Scheduler {
     ) -> io::Result<FileDescriptor> {
         // find a free file descriptor
         let fd = (0..FileDescriptor::MAX)
-            .find(|i| !self.current_task.borrow().fd_map.contains_key(i))
+            .find(|i| !self.current_task.lock().fd_map.contains_key(i))
             .ok_or(io::Error::TooManyOpenFiles)?;
 
         interrupts::without_interrupts(|| {
-            self.current_task.borrow_mut().fd_map.insert(fd, interface);
+            self.current_task.lock().fd_map.insert(fd, interface);
         });
 
         Ok(fd)
@@ -175,7 +167,7 @@ impl Scheduler {
     pub fn remove_io_interface(&self, fd: FileDescriptor) -> io::Result<Arc<dyn IoInterface>> {
         interrupts::without_interrupts(|| {
             self.current_task
-                .borrow_mut()
+                .lock()
                 .fd_map
                 .remove(&fd)
                 .ok_or(io::Error::BadFileDescriptor)
@@ -184,9 +176,9 @@ impl Scheduler {
 
     pub fn exit(&mut self) -> ! {
         interrupts::without_interrupts(|| {
-            if self.current_task.borrow().status != TaskStatus::Idle {
-                log::trace!("Finished task with id {:?}", self.current_task.borrow().id);
-                self.current_task.borrow_mut().status = TaskStatus::Finished;
+            if self.current_task.lock().status != TaskStatus::Idle {
+                log::trace!("Finished task with id {:?}", self.current_task.lock().id);
+                self.current_task.lock().status = TaskStatus::Finished;
             } else {
                 panic!("Cannot terminate idle task");
             }
@@ -209,11 +201,11 @@ impl Scheduler {
         }
 
         let (current_id, current_status, current_sp, current_priority) = {
-            let mut b = self.current_task.borrow_mut();
+            let mut b = self.current_task.lock();
             (b.id, b.status, &raw mut b.last_stack_ptr, b.cfg.priority)
         };
 
-        let mut next_task: Option<RcTask>;
+        let mut next_task: Option<ArcTask>;
         if current_status == TaskStatus::Running {
             next_task = self.ready_queue.pop_with_priority(current_priority);
         } else {
@@ -225,18 +217,18 @@ impl Scheduler {
             && current_status != TaskStatus::Idle
         {
             // log::trace!("Switch to idle task");
-            next_task = Some(Rc::clone(&self.idle_task));
+            next_task = Some(Arc::clone(&self.idle_task));
         }
 
         if let Some(next_task) = next_task {
             let next_sp = {
-                let mut b = next_task.borrow_mut();
+                let mut b = next_task.lock();
                 b.status = TaskStatus::Running;
                 b.last_stack_ptr
             };
 
             if current_status == TaskStatus::Running {
-                self.current_task.borrow_mut().status = TaskStatus::Ready;
+                self.current_task.lock().status = TaskStatus::Ready;
                 self.ready_queue.push(&self.current_task);
             } else if current_status == TaskStatus::Finished {
                 // log::trace!(
@@ -256,27 +248,27 @@ impl Scheduler {
         interrupts::without_interrupts(|| self.schedule())
     }
 
-    pub fn block_current_task(&self) -> RcTask {
+    pub fn block_current_task(&self) -> ArcTask {
         interrupts::without_interrupts(|| {
-            if self.current_task.borrow().status == TaskStatus::Running {
-                // log::trace!("Block task with id {:?}", self.current_task.borrow().id);
+            if self.current_task.lock().status == TaskStatus::Running {
+                // log::trace!("Block task with id {:?}", self.current_task.lock().id);
 
-                self.current_task.borrow_mut().status = TaskStatus::Blocked;
-                Rc::clone(&self.current_task)
+                self.current_task.lock().status = TaskStatus::Blocked;
+                Arc::clone(&self.current_task)
             } else {
                 panic!(
                     "Cannot block task with id {:?} - not running",
-                    self.current_task.borrow().id
+                    self.current_task.lock().id
                 );
             }
         })
     }
 
-    pub fn wakeup_task(&mut self, task: &RcTask) {
-        if task.borrow().status == TaskStatus::Blocked {
-            // log::trace!("Waking up task id: {:?}", task.borrow().id);
+    pub fn wakeup_task(&mut self, task: &ArcTask) {
+        if task.lock().status == TaskStatus::Blocked {
+            // log::trace!("Waking up task id: {:?}", task.lock().id);
 
-            task.borrow_mut().status = TaskStatus::Ready;
+            task.lock().status = TaskStatus::Ready;
             self.ready_queue.push(task);
         }
     }
@@ -284,25 +276,25 @@ impl Scheduler {
     pub fn wakeup_task_by_id(&mut self, id: TaskId) {
         interrupts::without_interrupts(|| {
             if let Some(task) = self.tasks.get(&id)
-                && task.borrow().status == TaskStatus::Blocked
+                && task.lock().status == TaskStatus::Blocked
             {
                 // log::trace!("Waking up OS task id: {:?}", id);
-                task.borrow_mut().status = TaskStatus::Ready;
+                task.lock().status = TaskStatus::Ready;
                 self.ready_queue.push(task);
             }
         });
     }
 
     pub fn get_current_task_id(&self) -> TaskId {
-        interrupts::without_interrupts(|| self.current_task.borrow().id)
+        interrupts::without_interrupts(|| self.current_task.lock().id)
     }
 
     pub fn set_root_page_table(&self, addr: PhysicalAddress) {
-        self.current_task.borrow_mut().root_page_table = addr;
+        self.current_task.lock().root_page_table = addr;
     }
 
     pub fn get_root_page_table(&self) -> PhysicalAddress {
-        self.current_task.borrow().root_page_table
+        self.current_task.lock().root_page_table
     }
 }
 
