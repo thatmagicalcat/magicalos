@@ -1,6 +1,6 @@
 use crate::syscall::{
-    arch_prctl::sys_arch_prctl, exit::sys_exit, mmap::sys_mmap, read::sys_read,
-    write::sys_write,
+    arch_prctl::sys_arch_prctl, close::sys_close, exit::sys_exit, mmap::sys_mmap, open::sys_open,
+    read::sys_read, write::sys_write,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -11,6 +11,8 @@ pub enum Syscall {
     Write = 2,
     MemMap = 3,
     ArchPrctl = 4,
+    Open = 5,
+    Close = 6,
 
     /// Not a valid syscall
     NumSyscalls,
@@ -31,6 +33,8 @@ impl SyscallTable {
                 sys_write as _,
                 sys_mmap as _,
                 sys_arch_prctl as _,
+                sys_open as _,
+                sys_close as _,
             ],
         }
     }

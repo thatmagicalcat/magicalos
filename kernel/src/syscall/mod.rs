@@ -1,11 +1,13 @@
 mod table;
 
+mod arch_prctl;
+mod close;
 mod empty;
 mod exit;
-mod read;
-mod arch_prctl;
-mod write;
 mod mmap;
+mod open;
+mod read;
+mod write;
 
 pub use table::*;
 
