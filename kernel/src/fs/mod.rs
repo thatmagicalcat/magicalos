@@ -111,12 +111,22 @@ pub enum SeekFrom {
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct OpenOptions: u32 {
-        const RDONLY = 1 << 0;
-        const WRONLY = 1 << 1;
-        const APPEND = 1 << 2;
-        const TRUNCATE = 1 << 3;
-        const CREATE = 1 << 4;
-
-        const RW = Self::RDONLY.bits() | Self::WRONLY.bits();
+        const PATH     = 0o10000000;
+        const ACCMODE  = (0o3 | Self::PATH.bits());
+        const RDONLY   = 0o0;
+        const WRONLY   = 0o1;
+        const RDWR     = 0o2;
+        const CREAT    = 0o100;
+        const EXCL     = 0o200;
+        const NOCTTY   = 0o400;
+        const TRUNC    = 0o1000;
+        const APPEND   = 0o2000;
+        const NONBLOCK = 0o4000;
+        const DSYNC    = 0o10000;
+        const ASYNC    = 0o20000;
+        const CLOEXEC  = 0o2000000;
+        const SYNC     = 0o4010000;
+        const RSYNC    = 0o4010000;
+        const NOATIME  = 0o1000000;
     }
 }

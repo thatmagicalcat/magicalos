@@ -287,7 +287,7 @@ impl Vfs {
 
         // if it doesn't exist and we aren't creating
         // fail
-        if !flags.contains(OpenOptions::CREATE) {
+        if !flags.contains(OpenOptions::CREAT) {
             return Err(io::Error::NoSuchFileOrDirectory);
         }
 

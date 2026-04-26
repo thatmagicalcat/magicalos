@@ -14,7 +14,7 @@ pub struct File {
 
 impl File {
     pub fn create(path: &str) -> io::Result<Self> {
-        let fd = fs::open(path, OpenOptions::CREATE)?;
+        let fd = fs::open(path, OpenOptions::CREAT)?;
 
         Ok(Self {
             fd,
@@ -24,7 +24,7 @@ impl File {
 
     /// open file in read-write mode
     pub fn open(path: &str) -> io::Result<Self> {
-        let fd = fs::open(path, OpenOptions::RW)?;
+        let fd = fs::open(path, OpenOptions::RDWR)?;
 
         Ok(Self {
             fd,
