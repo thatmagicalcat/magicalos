@@ -108,7 +108,7 @@ impl From<VfsFile> for VfsNode {
 
 pub struct VfsDirectory {
     parent: Option<VfsNodeId>,
-    children: BTreeMap<String, VfsNodeId>,
+    children: spin::RwLock<BTreeMap<String, VfsNodeId>>,
 }
 
 impl From<VfsDirectory> for VfsNode {
@@ -118,7 +118,7 @@ impl From<VfsDirectory> for VfsNode {
 }
 
 pub struct Vfs {
-    arena: SlotMap<VfsNodeId, VfsNode>,
+    arena: spin::RwLock<SlotMap<VfsNodeId, VfsNode>>,
     root: VfsNodeId,
 }
 
@@ -128,41 +128,23 @@ impl Vfs {
 
         let root = arena.insert(VfsNode::Directory(VfsDirectory {
             parent: None,
-            children: BTreeMap::new(),
+            children: spin::RwLock::new(BTreeMap::new()),
         }));
 
-        Self { arena, root }
+        Self {
+            arena: spin::RwLock::new(arena),
+            root,
+        }
     }
 
     pub const fn get_root_node_id(&self) -> VfsNodeId {
         self.root
     }
 
-    pub fn get_root_node(&self) -> &VfsNode {
-        &self.arena[self.root]
-    }
-
-    pub fn get_root_dir(&self) -> &VfsDirectory {
-        match self.get_root_node() {
-            VfsNode::Directory(vfs_directory) => vfs_directory,
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline]
-    pub fn get_node(&self, id: VfsNodeId) -> io::Result<&VfsNode> {
-        self.arena.get(id).ok_or(io::Error::NoSuchFileOrDirectory)
-    }
-
-    #[inline]
-    pub fn get_node_mut(&mut self, id: VfsNodeId) -> io::Result<&mut VfsNode> {
-        self.arena
-            .get_mut(id)
-            .ok_or(io::Error::NoSuchFileOrDirectory)
-    }
-
     pub fn resolve_path(&self, cwd: VfsNodeId, path: &str) -> io::Result<VfsNodeId> {
-        assert!(matches!(self.get_node(cwd), Ok(VfsNode::Directory(..))));
+        if !matches!(self.arena.read().get(cwd), Some(VfsNode::Directory(..))) {
+            return Err(io::Error::NotADirectory);
+        }
 
         let mut current_id = if path.starts_with('/') {
             self.root
@@ -174,27 +156,28 @@ impl Vfs {
             match component {
                 "" | "." => continue,
                 ".." => {
-                    let node = self.arena.get(current_id).ok_or(io::Error::StaleId)?;
+                    let read = self.arena.read();
+                    let node = read.get(current_id).ok_or(io::Error::StaleId)?;
                     if let VfsNode::Directory(VfsDirectory { parent, .. }) = node {
                         if let Some(parent_id) = parent {
                             current_id = *parent_id;
                         }
                     } else {
-                        // the assertion above should take care of this
-                        unreachable!()
+                        return Err(io::Error::NotADirectory);
                     }
                 }
 
                 child_name => {
-                    let node = self.arena.get(current_id).ok_or(io::Error::StaleId)?;
+                    let read = self.arena.read();
+                    let node = read.get(current_id).ok_or(io::Error::StaleId)?;
                     if let VfsNode::Directory(VfsDirectory { children, .. }) = node {
-                        if let Some(&child_id) = children.get(child_name) {
+                        if let Some(&child_id) = children.read().get(child_name) {
                             current_id = child_id;
                         } else {
                             return Err(io::Error::NoSuchFileOrDirectory);
                         }
                     } else {
-                        unreachable!()
+                        return Err(io::Error::NotADirectory);
                     }
                 }
             }
@@ -203,104 +186,150 @@ impl Vfs {
         Ok(current_id)
     }
 
-    pub fn mkdir(&mut self, cwd: VfsNodeId, path: &str) -> io::Result<VfsNodeId> {
+    pub fn mkdir(&self, cwd: VfsNodeId, path: &str) -> io::Result<VfsNodeId> {
         if path == "/" {
             return Err(io::Error::AlreadyExists);
         }
 
         // /usr/bin/ -> /usr/bin
         let path = path.trim_end_matches('/');
-
         let (new_dir_name, parent_id) = self.split_leaf(cwd, path)?;
 
-        // verify that the child doesn't already exists
-        let parent_node = self.get_node(parent_id)?;
-        match parent_node {
-            VfsNode::Directory(vfs_directory)
-                if vfs_directory.children.contains_key(new_dir_name) =>
-            {
-                return Err(io::Error::AlreadyExists);
-            }
-
-            VfsNode::Directory(..) => {}
-
-            _ => return Err(io::Error::NotADirectory),
-        }
-
-        let new_dir_id = self.arena.insert(
+        // optimistic-allocation
+        let new_dir_id = self.arena.write().insert(
             VfsDirectory {
                 parent: Some(parent_id),
-                children: BTreeMap::new(),
+                children: spin::RwLock::new(BTreeMap::new()),
             }
             .into(),
         );
 
-        if let VfsNode::Directory(VfsDirectory { children, .. }) = self.get_node_mut(parent_id)? {
-            children.insert(String::from(new_dir_name), new_dir_id);
+        // verify that the child doesn't already exists
+        let arena_r = self.arena.read();
+        let Some(parent_node) = arena_r.get(parent_id) else {
+            drop(arena_r);
+            self.arena.write().remove(new_dir_id); // rollback
+            return Err(io::Error::NoSuchFileOrDirectory);
+        };
+
+        let parent_dir = parent_node.as_dir()?;
+        let mut children_w = parent_dir.children.write();
+
+        if children_w.contains_key(new_dir_name) {
+            drop(children_w);
+            drop(arena_r);
+
+            // rollback optimistic-allocation
+            self.arena.write().remove(new_dir_id);
+            return Err(io::Error::AlreadyExists);
         }
+
+        children_w.insert(String::from(new_dir_name), new_dir_id);
 
         Ok(new_dir_id)
     }
 
     pub fn mount(
-        &mut self,
+        &self,
         cwd: VfsNodeId,
         path: &str,
         region: &'static [u8],
     ) -> io::Result<VfsNodeId> {
         let (file_name, parent_id) = self.split_leaf(cwd, path)?;
 
-        let parent_node = self.get_node(parent_id)?.as_dir()?;
-        if parent_node.children.contains_key(file_name) {
+        // optimistic-allocation
+        let new_file_node: VfsNode = VfsFile::new_static(region).into();
+        let new_file_id = self.arena.write().insert(new_file_node);
+
+        let arena_r = self.arena.read();
+        let Some(parent_node) = arena_r.get(parent_id) else {
+            drop(arena_r);
+            self.arena.write().remove(new_file_id); // rollback
+            return Err(io::Error::NoSuchFileOrDirectory);
+        };
+
+        let parent_dir = parent_node.as_dir()?;
+        let mut children_w = parent_dir.children.write();
+
+        if children_w.contains_key(file_name) {
+            drop(children_w);
+            drop(arena_r);
+            self.arena.write().remove(new_file_id); // Rollback!
             return Err(io::Error::AlreadyExists);
         }
 
-        let file_node: VfsNode = VfsFile::new_static(region).into();
-        let file_id = self.arena.insert(file_node);
-        let parent_node = self.get_node_mut(parent_id)?.as_dir_mut()?;
-
-        parent_node
-            .children
-            .insert(String::from(file_name), file_id);
-        Ok(file_id)
+        children_w.insert(String::from(file_name), new_file_id);
+        Ok(new_file_id)
     }
 
     pub fn open(
-        &mut self,
+        &self,
         cwd: VfsNodeId,
         path: &str,
         flags: OpenOptions,
     ) -> io::Result<Arc<dyn IoInterface>> {
-        // it doesn't, we have to create it
         let (file_name, parent_id) = self.split_leaf(cwd, path)?;
 
-        if let Some(handle) = self
-            .get_node(parent_id)?
-            .as_dir()?
-            .children
-            .get(file_name)
-            .and_then(|&id| self.get_node(id).ok())
-            .and_then(|node| node.as_file().ok())
-            .and_then(|file| file.get_handle(flags).ok())
-        {
-            return Ok(handle);
+        // fast check:
+        // return the handle if it already exists
+        let arena_r = self.arena.read();
+        let parent_dir = arena_r
+            .get(parent_id)
+            .ok_or(io::Error::NoSuchFileOrDirectory)?
+            .as_dir()?;
+
+        if let Some(&file_id) = parent_dir.children.read().get(file_name) {
+            let file_node = arena_r.get(file_id).ok_or(io::Error::StaleId)?;
+            return file_node.as_file()?.get_handle(flags);
         }
 
-        if flags.contains(OpenOptions::CREATE) {
-            let file = VfsFile::new_dynamic(true);
-            let handle = file.get_handle(flags);
-            let file_id = self.arena.insert(file.into());
-            let parent_dir = self.get_node_mut(parent_id)?.as_dir_mut()?;
+        drop(arena_r); // for optimistic-allocation
 
-            parent_dir.children.insert(String::from(file_name), file_id);
-            return handle;
+        // if it doesn't exist and we aren't creating
+        // fail
+        if !flags.contains(OpenOptions::CREATE) {
+            return Err(io::Error::NoSuchFileOrDirectory);
         }
 
-        Err(io::Error::InvalidValue)
+        // optimistic-allocation
+        let file = VfsFile::new_dynamic(true);
+        let handle = file.get_handle(flags)?;
+        let new_file_id = self.arena.write().insert(file.into());
+
+        // acquire the lock to commit
+        let arena_r = self.arena.read();
+        let Some(parent_node) = arena_r.get(parent_id) else {
+            drop(arena_r);
+            self.arena.write().remove(new_file_id); // rollback
+            return Err(io::Error::NoSuchFileOrDirectory);
+        };
+
+        let parent_dir = parent_node.as_dir()?;
+        let mut children_w = parent_dir.children.write();
+
+        // check once again, did someone else create it while we dropped the lock?
+        if let Some(&existing_file_id) = children_w.get(file_name) {
+            drop(children_w);
+            let existing_file_handle = arena_r
+                .get(existing_file_id)
+                .ok_or(io::Error::StaleId)?
+                .as_file()?
+                .get_handle(flags)?;
+
+            // rollback optimistic-allocation
+            drop(arena_r);
+            self.arena.write().remove(new_file_id);
+
+            return Ok(existing_file_handle);
+        }
+
+        // commit
+        children_w.insert(String::from(file_name), new_file_id);
+        Ok(handle)
     }
 
     fn split_leaf<'a>(
-        &mut self,
+        &self,
         cwd: VfsNodeId,
         path: &'a str,
     ) -> Result<(&'a str, VfsNodeId), io::Error> {
@@ -326,21 +355,16 @@ impl Vfs {
         Ok((leaf, parent_id))
     }
 
-    pub fn tree_lsdir(&self, dir_id: VfsNodeId) {
-        let dir_node = self.get_node(dir_id);
-        assert!(
-            matches!(dir_node, Ok(VfsNode::Directory(..))),
-            "Not a directory"
-        );
-
+    pub fn tree_lsdir(&self, dir_id: VfsNodeId) -> io::Result<()> {
         fn helper(
             this: &VfsDirectory,
             prefixes: &mut Vec<bool>,
-            arena: &SlotMap<VfsNodeId, VfsNode>,
+            arena: &spin::RwLockReadGuard<SlotMap<VfsNodeId, VfsNode>>,
         ) {
-            let children_count = this.children.len();
+            let children = this.children.read();
+            let children_count = children.len();
 
-            for (i, (node_name, node_id)) in this.children.iter().enumerate() {
+            for (i, (node_name, node_id)) in children.iter().enumerate() {
                 let is_last = i == children_count - 1;
 
                 for &parent_is_last in prefixes.iter() {
@@ -369,11 +393,17 @@ impl Vfs {
             }
         }
 
+        let arena_r = self.arena.read();
         helper(
-            dir_node.unwrap().as_dir().unwrap(),
+            arena_r
+                .get(dir_id)
+                .ok_or(io::Error::NoSuchFileOrDirectory)?
+                .as_dir()?,
             &mut Vec::new(),
-            &self.arena,
+            &arena_r,
         );
+
+        Ok(())
     }
 }
 
@@ -381,9 +411,4 @@ impl Default for Vfs {
     fn default() -> Self {
         Self::new()
     }
-}
-
-#[test_case]
-fn vfs_rewrite_test() {
-    let mut vfs = Vfs::new();
 }

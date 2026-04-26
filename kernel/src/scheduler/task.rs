@@ -226,13 +226,12 @@ impl TaskConfig {
             return cwd_id;
         }
 
-        let locked = fs::VFS.lock();
         if matches!(self.cwd.as_str(), "" | "/") {
-            self.cwd_id = Some(locked.get_root_node_id());
+            self.cwd_id = Some(fs::VFS.get_root_node_id());
         } else {
             self.cwd_id = Some(
-                locked
-                    .resolve_path(locked.get_root_node_id(), &self.cwd)
+                fs::VFS
+                    .resolve_path(fs::VFS.get_root_node_id(), &self.cwd)
                     .expect("cwd does not exist"),
             );
         }
