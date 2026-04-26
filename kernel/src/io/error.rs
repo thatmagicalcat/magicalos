@@ -15,6 +15,7 @@ pub enum Error {
     WriteAllEOF = errno::EPIPE as _,
     AlreadyExists = errno::EEXIST as _,
     StaleId = errno::ESTALE as _,
+    DirectoryNotEmpty = errno::ENOTEMPTY as _,
 }
 
 impl core::fmt::Display for Error {

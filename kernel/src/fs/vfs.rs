@@ -328,6 +328,69 @@ impl Vfs {
         Ok(handle)
     }
 
+    // TODO: add deferred deletion
+    pub fn unlink(&self, cwd: VfsNodeId, path: &str) -> io::Result<()> {
+        let (file_name, parent_id) = self.split_leaf(cwd, path)?;
+
+        let target_id = {
+            let arena_r = self.arena.read();
+            let parent_dir = arena_r
+                .get(parent_id)
+                .ok_or(io::Error::NoSuchFileOrDirectory)?
+                .as_dir()?;
+            let mut children_w = parent_dir.children.write();
+
+            let Some(&target_id) = children_w.get(file_name) else {
+                return Err(io::Error::NoSuchFileOrDirectory);
+            };
+
+            let target_node = arena_r.get(target_id).ok_or(io::Error::StaleId)?;
+            if !target_node.is_file() {
+                return Err(io::Error::NotAFile);
+            }
+
+            children_w.remove(file_name);
+            target_id
+        };
+
+        self.arena.write().remove(target_id);
+
+        Ok(())
+    }
+
+    pub fn rmdir(&self, cwd: VfsNodeId, path: &str) -> io::Result<()> {
+        let (file_name, parent_id) = self.split_leaf(cwd, path)?;
+
+        let target_id = {
+            let arena_r = self.arena.read();
+            let parent_dir = arena_r
+                .get(parent_id)
+                .ok_or(io::Error::NoSuchFileOrDirectory)?
+                .as_dir()?;
+            let mut children_w = parent_dir.children.write();
+
+            let Some(&target_id) = children_w.get(file_name) else {
+                return Err(io::Error::NoSuchFileOrDirectory);
+            };
+
+            if target_id == self.root {
+                return Err(io::Error::InvalidValue);
+            }
+
+            let target_node = arena_r.get(target_id).ok_or(io::Error::StaleId)?;
+            if !target_node.as_dir()?.children.read().is_empty() {
+                return Err(io::Error::DirectoryNotEmpty);
+            }
+
+            children_w.remove(file_name);
+            target_id
+        };
+
+        self.arena.write().remove(target_id);
+
+        Ok(())
+    }
+
     fn split_leaf<'a>(
         &self,
         cwd: VfsNodeId,

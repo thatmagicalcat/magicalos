@@ -23,14 +23,6 @@ bitflags::bitflags! {
     }
 }
 
-fn f(i: *const i32) -> bool {
-    if i as usize % 100 == 0 {
-        return true;
-    }
-
-    false
-}
-
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PageTableEntry(pub u64);
