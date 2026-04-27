@@ -2,11 +2,7 @@ use alloc::{sync::Arc, vec::Vec};
 use spin::RwLock;
 
 use super::SeekFrom;
-use crate::{
-    fs::OpenOptions,
-    io::{self, IoInterface},
-    synch::Spinlock,
-};
+use crate::{fs::OpenOptions, io, synch::Spinlock};
 
 #[derive(Debug)]
 pub(crate) struct StaticData {
@@ -37,12 +33,11 @@ impl StaticData {
             return Ok(0);
         }
 
-        let len;
-        if data.len() - *pos >= buf.len() {
-            len = buf.len();
+        let len = if data.len() - *pos >= buf.len() {
+            buf.len()
         } else {
-            len = data.len() - *pos;
-        }
+            data.len() - *pos
+        };
 
         buf[0..len].copy_from_slice(&data[*pos..*pos + len]);
         *pos += len;
@@ -115,7 +110,7 @@ impl DynamicData {
         };
 
         DynamicData {
-            writable: flags.contains(OpenOptions::WRONLY | OpenOptions::APPEND),
+            writable: flags.contains(OpenOptions::WRONLY) | flags.contains(OpenOptions::APPEND),
             pos: Spinlock::new(pos),
             data: Arc::clone(&self.data),
         }
@@ -133,12 +128,11 @@ impl DynamicData {
             return Ok(0);
         }
 
-        let len;
-        if data.len() - *pos >= buf.len() {
-            len = buf.len();
+        let len = if data.len() - *pos >= buf.len() {
+            buf.len()
         } else {
-            len = data.len() - *pos;
-        }
+            data.len() - *pos
+        };
 
         buf[0..len].copy_from_slice(&data[*pos..*pos + len]);
         *pos += len;
