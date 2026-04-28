@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use std::path::{Path, PathBuf};
-use xshell::{Shell, cmd};
+use xshell::{cmd, Shell};
 use xtasks::{is_stale, project_root};
 
 use crate::kernel;

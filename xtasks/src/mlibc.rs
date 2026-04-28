@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use xshell::{Shell, cmd};
+use xshell::{cmd, Shell};
 use xtasks::project_root;
 
 pub fn setup(sh: &Shell, _quiet: bool) -> Result<()> {
