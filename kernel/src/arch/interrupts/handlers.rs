@@ -154,7 +154,9 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
         unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
 
         match ty {
+            // we already zeroed-out everything, we don't have to do anything else
             MappingType::Anonymous => {}
+
             MappingType::Elf {
                 ref data,
                 file_offset,

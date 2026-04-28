@@ -6,7 +6,7 @@ use crate::kernel;
 #[cfg(test)]
 use spin::Once;
 
-use crate::{dbg_print, dbg_println};
+use crate::dbg_println;
 
 pub trait Testable {
     fn run(&self);
@@ -17,9 +17,8 @@ where
     T: Fn(),
 {
     fn run(&self) {
-        dbg_print!("test {} ... ", core::any::type_name::<T>());
+        dbg_println!("test {}...", core::any::type_name::<T>());
         self();
-        dbg_println!("[ok]");
     }
 }
 
@@ -52,7 +51,9 @@ pub fn exit_qemu(code: QemuExitCode) -> ! {
     unsafe {
         u32::write_to_port(0xF4, code as u32);
 
-        loop { asm!("hlt") }
+        loop {
+            asm!("hlt")
+        }
     }
 }
 

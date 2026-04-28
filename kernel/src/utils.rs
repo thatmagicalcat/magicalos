@@ -1,4 +1,4 @@
-use crate::{arch::apic::DivideConfig, memory::paging::PhysicalAddress};
+use crate::{arch::apic::DivideConfig, memory::paging::PhysicalAddress, arch::processor::rdtscp};
 
 pub fn read_cr3() -> PhysicalAddress {
     let value: u64;
@@ -97,4 +97,15 @@ pub fn duration_to_timer_config(duration_ns: u64, lapic_freq_hz: u64) -> Option<
 
     // duration is too massive for the LAPIC hardware
     None
+}
+
+pub fn measure_cycles<F, R>(mut f: F) -> (R, u64)
+where
+    F: FnMut() -> R,
+{
+    let start = rdtscp();
+    let result = f();
+    let end = rdtscp();
+    
+    (result, end - start)
 }

@@ -96,7 +96,7 @@ pub fn kernel_entry() {
 
 #[cfg(all(test, target_os = "none"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn kmain() -> ! {
+pub extern "C" fn kernel_main() -> ! {
     test_main();
     testing::exit_qemu(testing::QemuExitCode::Success)
 }

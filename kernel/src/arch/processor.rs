@@ -91,6 +91,12 @@ unsafe extern "C" fn __jump_to_user_land(ds: usize, stack: usize, cs: usize, ent
     }
 }
 
+#[inline(always)]
+pub fn rdtscp() -> u64 {
+    let mut aux: u32 = 0;
+    unsafe { core::arch::x86_64::__rdtscp(&mut aux) }
+}
+
 /// Helper function to save and to restore the register states
 /// during a system call. `rax` is the system call identifier.
 /// The identifier is used to determine the address of the function,

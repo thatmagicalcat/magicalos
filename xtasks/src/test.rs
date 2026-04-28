@@ -52,6 +52,7 @@ pub fn run(sh: &Shell, quiet: bool) -> Result<()> {
             println!("[xtask]: tests passed");
             Ok(())
         }
+
         Some(code) => Err(eyre!("kernel tests failed with QEMU exit status {code}")),
         None => Err(eyre!("kernel tests failed: QEMU terminated by signal")),
     }

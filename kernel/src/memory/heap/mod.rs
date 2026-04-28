@@ -84,7 +84,62 @@ unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
 
 #[cfg(test)]
 mod tests {
+    use crate::dbg_println;
+
     use super::*;
+
+    #[test_case]
+    fn bench_simple_allocation() {
+        use crate::utils::measure_cycles;
+        let layout = Layout::from_size_align(128, 8).unwrap();
+
+        // warmup
+        let (_, warnup) = measure_cycles(|| unsafe {
+            let ptr = GLOBAL_ALLOCATOR.alloc(layout);
+            GLOBAL_ALLOCATOR.dealloc(ptr, layout);
+        });
+
+        let (_, cycles) = measure_cycles(|| {
+            let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+            unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
+        });
+
+        crate::dbg_println!("Warmup run [simple_allocation]: {warnup} CPU cycles");
+        crate::dbg_println!("Benchmark [simple_allocation]: {cycles} CPU cycles");
+    }
+
+    #[test_case]
+    fn bench_many_allocations() {
+        use crate::utils::measure_cycles;
+        use core::ptr::null_mut;
+
+        const ITERATIONS: usize = 1000;
+
+        let layout = Layout::from_size_align(64, 8).unwrap();
+        let mut pointers = [null_mut::<u8>(); ITERATIONS];
+
+        let (_, alloc_cycles) = measure_cycles(|| {
+            for i in 0..ITERATIONS {
+                pointers[i] = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+            }
+        });
+
+        let (_, free_cycles) = measure_cycles(|| {
+            for i in 0..ITERATIONS {
+                unsafe { GLOBAL_ALLOCATOR.dealloc(pointers[i], layout) };
+            }
+        });
+
+        dbg_println!(
+            "Benchmark [many_allocs - ALLOC]: {} avg cycles/alloc",
+            alloc_cycles / ITERATIONS as u64
+        );
+
+        dbg_println!(
+            "Benchmark [many_allocs - FREE]: {} avg cycles/free",
+            free_cycles / ITERATIONS as u64
+        );
+    }
 
     #[test_case]
     fn simple_allocation() {
