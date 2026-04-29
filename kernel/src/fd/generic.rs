@@ -72,15 +72,15 @@ pub(crate) struct GenericStderr;
 
 impl IoInterface for GenericStderr {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
-        log::error!("write(generic_stderr): {s}");
-        core::mem::forget(s);
+        // let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
+        // log::warn!("write(generic_stderr): {s}");
+        // core::mem::forget(s);
 
-        drivers::terminal::TERMINAL
-            .lock()
-            .as_mut()
-            .unwrap()
-            .write_bytes(buf);
+        // drivers::terminal::TERMINAL
+        //     .lock()
+        //     .as_mut()
+        //     .unwrap()
+        //     .write_bytes(buf);
         Ok(buf.len())
     }
 }

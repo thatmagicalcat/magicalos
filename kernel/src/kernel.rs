@@ -190,26 +190,34 @@ pub fn init_logging() {
 
         fn log(&self, record: &log::Record) {
             if self.enabled(record.metadata()) {
-                let level_color = match record.level() {
-                    log::Level::Error => "\x1b[91m", // Bright Red
-                    log::Level::Warn => "\x1b[93m",  // Bright Yellow
-                    log::Level::Info => "\x1b[92m",  // Bright Green
-                    log::Level::Debug => "\x1b[96m", // Bright Cyan
-                    log::Level::Trace => "\x1b[95m", // Bright Magenta
+                let (level_color, full_line) = match record.level() {
+                    log::Level::Error => ("\x1b[1;97;41m", true),
+                    log::Level::Warn => ("\x1b[1;33m", false),
+                    log::Level::Info => ("\x1b[32m", false),
+                    log::Level::Debug => ("\x1b[36m", false),
+                    log::Level::Trace => ("\x1b[2;37m", false),
                 };
 
-                let meta_color = "\x1b[90m"; // Dim Gray for file/line
+                let meta_color = "\x1b[90m";
                 let reset = "\x1b[0m";
 
                 let file = &record.file().unwrap_or("?")["kernel/src/".len()..];
                 let line = record.line().unwrap_or(0);
 
-                dbg_println!(
-                    "{level_color}[{: <5}]{reset} @ {meta_color}\x1b[3m<{file}:{line}>\x1b[23m{reset} {level_color}{}{reset}",
-                    // "{level_color}[{: <5}]{reset} {reset}{level_color}{}{reset}",
-                    record.level(),
-                    record.args(),
-                );
+                if full_line {
+                    // EVERYTHING stays red
+                    dbg_println!(
+                        "{level_color}[{: <5}] @ \x1b[3m<{file}:{line}>\x1b[23m {}{reset}",
+                        record.level(),
+                        record.args(),
+                    );
+                } else {
+                    dbg_println!(
+                        "{level_color}[{: <5}]{reset} @ {meta_color}\x1b[3m<{file}:{line}>\x1b[23m{reset} {level_color}{}{reset}",
+                        record.level(),
+                        record.args(),
+                    );
+                }
             }
         }
 

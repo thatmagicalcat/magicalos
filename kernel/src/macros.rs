@@ -86,9 +86,9 @@ macro_rules! flush_tlb {
 
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
-    interrupts::without_interrupts(|| {
-        TERMINAL.lock().as_mut().unwrap().write_fmt(args).unwrap();
-    });
+    // interrupts::without_interrupts(|| {
+    //     TERMINAL.lock().as_mut().unwrap().write_fmt(args).unwrap();
+    // });
 }
 
 #[doc(hidden)]
