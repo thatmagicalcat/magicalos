@@ -7,6 +7,7 @@ mod empty;
 mod exit;
 mod mmap;
 mod seek;
+mod mkdir;
 mod open;
 mod read;
 mod sleep;

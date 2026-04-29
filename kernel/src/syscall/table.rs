@@ -13,6 +13,7 @@ pub enum Syscall {
     Clock,
     Sleep,
     Seek,
+    Mkdir,
 
     /// Not a valid syscall
     NumSyscalls,
@@ -38,6 +39,7 @@ impl SyscallTable {
                 /* 7 */ clock::sys_clock as _,
                 /* 8 */ sleep::sys_sleep as _,
                 /* 9 */ seek::sys_seek as _,
+                /* 10 */ mkdir::sys_mkdir as _,
             ],
         }
     }
