@@ -87,10 +87,11 @@ pub fn init() {
 
     let pci_devices = bus::pci::enumerate();
     log::info!("Found {} PCI devices:", pci_devices.len());
+    pci_devices
+        .iter()
+        .for_each(|device| log::info!("  - {device}"));
 
-    for device in pci_devices {
-        log::info!("  - {}", device);
-    }
+    let mut pci_driver_manager = bus::pci::PciDriverManager::new();
 
     scheduler::init();
 

@@ -1,9 +1,356 @@
 //! source: https://wiki.osdev.org/PCI
 
 use crate::bus::port::Port;
-use alloc::vec::Vec;
+
+use alloc::{boxed::Box, vec::Vec};
+
 const CONFIG_ADDRESS: u16 = 0xCF8;
 const CONFIG_DATA: u16 = 0xCFC;
+
+pub struct PciDriverManager {
+    // We keep the drivers alive here so they can
+    // handle interrupts or state later.
+    drivers: Vec<Box<dyn PciDriver + Send>>,
+}
+
+impl PciDriverManager {
+    pub const fn new() -> Self {
+        Self {
+            drivers: Vec::new(),
+        }
+    }
+
+    /// Add a driver to the registry and immediately probe existing devices.
+    pub fn add_and_probe(&mut self, devices: &[PciDevice], driver: Box<dyn PciDriver + Send>) {
+        let matchers = driver.ids();
+
+        for dev in devices {
+            for matcher in matchers {
+                if matcher.match_pci(dev)
+                    && let Err(e) = driver.probe(dev)
+                {
+                    log::error!(
+                        "Driver {} failed to probe device {dev}: {e}",
+                        driver.name(),
+                    );
+
+                    continue;
+                }
+            }
+        }
+
+        self.drivers.push(driver);
+    }
+}
+
+impl Default for PciDriverManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DriverError {
+    NoMemory,
+    BarMappingFailed,
+    BarNotFound,
+    DeviceNotSupported,
+    InvalidConfiguration,
+    HardwareFault,
+}
+
+impl core::fmt::Display for DriverError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoMemory => write!(f, "Out of memory during driver init"),
+            Self::BarMappingFailed => write!(f, "Failed to map PCI BARs"),
+            _ => write!(f, "{self:?}"),
+        }
+    }
+}
+
+impl core::error::Error for DriverError {}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum PciMatcher {
+    /// Match a specific hardware (e.g., specific Realtek card)
+    Id { vendor: u16, device: u16 },
+    /// Match a category (e.g., any AHCI controller)
+    Class {
+        class: u8,
+        subclass: u8,
+        prog_if: u8,
+    },
+}
+
+impl PciMatcher {
+    const fn match_pci(&self, dev: &PciDevice) -> bool {
+        match self {
+            PciMatcher::Id { vendor, device } => {
+                dev.vendor_id == *vendor && dev.device_id == *device
+            }
+            PciMatcher::Class {
+                class,
+                subclass,
+                prog_if,
+            } => dev.class == *class && dev.subclass == *subclass && dev.prog_if == *prog_if,
+        }
+    }
+}
+
+pub trait PciDriver {
+    /// A human-readable name for the driver
+    fn name(&self) -> &'static str;
+
+    /// Return the list of devices this driver supports
+    fn ids(&self) -> &[PciMatcher];
+
+    /// Called by the kernel when a matching device is found.
+    /// The driver should map BARs and initialize the hardware here.
+    fn probe(&self, device: &PciDevice) -> Result<(), DriverError>;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PciBar {
+    None,
+    Mmio32 {
+        address: u32,
+        size: usize,
+        prefetchable: bool,
+    },
+    Mmio64 {
+        address: u64,
+        size: usize,
+        prefetchable: bool,
+    },
+    Io {
+        port: u16,
+        size: usize,
+    },
+}
+
+#[derive(Debug)]
+pub struct PciDevice {
+    pub bus: u8,
+    pub slot: u8,
+    pub func: u8,
+    pub vendor_id: u16,
+    pub device_id: u16,
+    pub class: u8,
+    pub subclass: u8,
+    pub prog_if: u8,
+    pub is_multi_function: bool,
+    pub header_type: u8,
+}
+
+impl PciDevice {
+    pub fn enable_capabilities(&self, mmio: bool, dma: bool, io: bool) {
+        let mut command = self.read_u32(0x4);
+
+        if mmio {
+            command |= 1 << 1;
+        }
+
+        if dma {
+            command |= 1 << 2;
+        }
+
+        if io {
+            command |= 1;
+        }
+
+        self.write_u32(0x4, command);
+    }
+
+    pub fn read_u32(&self, offset: u8) -> u32 {
+        read_u32(self.bus, self.slot, self.func, offset)
+    }
+
+    pub fn write_u32(&self, offset: u8, value: u32) {
+        write_u32(self.bus, self.slot, self.func, offset, value);
+    }
+
+    pub fn get_bar(&self, bar_index: u8) -> Option<PciBar> {
+
+        match self.header_type {
+            0 => {
+                if bar_index >= 6 {
+                    return None;
+                }
+            }
+            1 => {
+                if bar_index >= 2 {
+                    return None;
+                }
+            }
+
+            _ => return None,
+        }
+
+        let offset = 0x10 + bar_index * 4;
+
+        let old_command = read_u32(self.bus, self.slot, self.func, 0x04);
+        // clear bit 0 (I/O), bit 1 (Memory), and bit 2 (Bus Master)
+        self.write_u32(0x4, old_command & !0b111);
+
+        let bar_val = self.read_u32(offset);
+
+        if bar_val == 0 {
+            return None;
+        }
+
+        let is_io = (bar_val & 0x1) != 0;
+
+        self.write_u32(offset, 0xFFFF_FFFF);
+        let size_mask = self.read_u32(offset);
+        self.write_u32(offset, bar_val); // restore original
+
+        let pci_bar = if is_io {
+            PciBar::Io {
+                port: (bar_val & 0xFFFF_FFFC) as _,
+                size: !(size_mask as usize & 0xFFFF_FFFC) + 1,
+            }
+        } else {
+            let is_64bit = (bar_val & 0x6) == 0x4;
+            let prefetchable = (bar_val & 0x8) != 0;
+
+            if is_64bit && bar_index < 5 {
+                let next_offset = offset + 4;
+                let bar_val_hi = self.read_u32(next_offset);
+
+                self.write_u32(next_offset, 0xFFFF_FFFF);
+                let size_mask_hi = self.read_u32(next_offset);
+                self.write_u32(next_offset, bar_val_hi);
+
+                let address = ((bar_val_hi as u64) << 32) | (bar_val & 0xFFFF_FFF0) as u64;
+                let full_mask = ((size_mask_hi as u64) << 32) | (size_mask & 0xFFFF_FFF0) as u64;
+                let size = (!full_mask + 1) as usize;
+
+                PciBar::Mmio64 {
+                    address,
+                    size,
+                    prefetchable,
+                }
+            } else {
+                let address = bar_val & 0xFFFF_FFF0;
+                let size = (!(size_mask & 0xFFFF_FFF0) + 1) as usize;
+
+                PciBar::Mmio32 {
+                    address,
+                    size,
+                    prefetchable,
+                }
+            }
+        };
+
+        self.write_u32(0x4, old_command);
+
+        Some(pci_bar)
+    }
+}
+
+impl core::fmt::Display for PciDevice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let PciDevice {
+            bus,
+            slot,
+            func,
+            vendor_id,
+            device_id,
+            class,
+            subclass,
+            prog_if,
+            ..
+        } = self;
+
+        let class_enum = PciClass::from_u8(*class);
+        let subclass_name = class_enum
+            .map(|i| i.get_subclass_name(*subclass))
+            .unwrap_or("Unknown");
+
+        write!(
+            f,
+            "{bus:02x}:{slot:02x}.{func} | {subclass_name} ({class_enum:?}, {prog_if}) | Vendor: ({vendor_id:#06x}) | Device: {device_id:#06x}",
+        )
+    }
+}
+
+pub fn read_u32(bus: u8, slot: u8, func: u8, offset: u8) -> u32 {
+    let address = (1 << 31)
+        | ((bus as u32) << 16)
+        | ((slot as u32) << 11)
+        | ((func as u32) << 8)
+        | (offset as u32 & 0xFC);
+
+    unsafe {
+        u32::write_to_port(CONFIG_ADDRESS, address);
+        u32::read_from_port(CONFIG_DATA)
+    }
+}
+
+pub fn write_u32(bus: u8, slot: u8, func: u8, offset: u8, value: u32) {
+    let address = (1 << 31)
+        | ((bus as u32) << 16)
+        | ((slot as u32) << 11)
+        | ((func as u32) << 8)
+        | (offset as u32 & 0xFC);
+
+    unsafe {
+        u32::write_to_port(CONFIG_ADDRESS, address);
+        u32::write_to_port(CONFIG_DATA, value);
+    }
+}
+
+pub fn enumerate() -> Vec<PciDevice> {
+    let mut devices = Vec::new();
+    for bus in 0..=255 {
+        for slot in 0..=31 {
+            if let Some(dev0) = check_function(bus, slot, 0) {
+                let is_multi = dev0.is_multi_function;
+                devices.push(dev0);
+
+                // check functions 1-7
+                if is_multi {
+                    for func in 1..=7 {
+                        if let Some(dev) = check_function(bus, slot, func) {
+                            devices.push(dev);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    devices
+}
+
+fn check_function(bus: u8, slot: u8, func: u8) -> Option<PciDevice> {
+    let reg0 = read_u32(bus, slot, func, 0);
+    let vendor_id = (reg0 & 0xFFFF) as u16;
+
+    // 0xFFFF means no device is present
+    if vendor_id == 0xFFFF {
+        return None;
+    }
+
+    let reg8 = read_u32(bus, slot, func, 0x08);
+    let reg_c = read_u32(bus, slot, func, 0x0C);
+
+    // Store the raw header_type but provide a way to mask it
+    let raw_header_type = ((reg_c >> 16) & 0xFF) as u8;
+
+    Some(PciDevice {
+        bus,
+        slot,
+        func,
+        header_type: raw_header_type & 0x7F, // Mask out the multi-function bit
+        is_multi_function: (raw_header_type & 0x80) != 0, // Store this separately if needed
+        vendor_id,
+        device_id: (reg0 >> 16) as u16,
+        class: (reg8 >> 24) as u8,
+        subclass: (reg8 >> 16) as u8,
+        prog_if: (reg8 >> 8) as u8,
+    })
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -269,95 +616,4 @@ impl PciClass {
             _ => "Unknown Subclass",
         }
     }
-}
-
-#[derive(Debug)]
-pub struct PciDevice {
-    pub bus: u8,
-    pub slot: u8,
-    pub func: u8,
-    pub vendor_id: u16,
-    pub device_id: u16,
-    pub class: u8,
-    pub subclass: u8,
-    pub prog_if: u8,
-}
-
-impl core::fmt::Display for PciDevice {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let PciDevice {
-            bus,
-            slot,
-            func,
-            vendor_id,
-            device_id,
-            class,
-            subclass,
-            prog_if,
-        } = self;
-
-        let class_enum = PciClass::from_u8(*class).expect("Unknown PCI class");
-        let subclass_name = class_enum.get_subclass_name(*subclass);
-
-        write!(
-            f,
-            "{bus:02x}:{slot:02x}.{func} | {subclass_name} ({class_enum:?}, {prog_if}) | Vendor: ({vendor_id:#06x}) | Device: {device_id:#06x}",
-        )
-    }
-}
-
-pub fn read_u32(bus: u8, slot: u8, func: u8, offset: u8) -> u32 {
-    let address = (1 << 31)
-        | ((bus as u32) << 16)
-        | ((slot as u32) << 11)
-        | ((func as u32) << 8)
-        | (offset as u32 & 0xFC);
-
-    unsafe {
-        u32::write_to_port(CONFIG_ADDRESS, address);
-        u32::read_from_port(CONFIG_DATA)
-    }
-}
-
-pub fn enumerate() -> Vec<PciDevice> {
-    let mut devices = Vec::new();
-    for bus in 0..=255 {
-        for slot in 0..=31 {
-            // Read Vendor ID from function 0
-            let reg0 = read_u32(bus, slot, 0, 0);
-            let vendor_id = (reg0 & 0xFFFF) as u16;
-            if vendor_id != 0xFFFF {
-                // Device exists! Check if multi-function
-                check_function(&mut devices, bus, slot, 0);
-
-                let header_type = (read_u32(bus, slot, 0, 0x0C) >> 16) as u8;
-                if (header_type & 0x80) != 0 {
-                    // Multi-function, check functions 1-7
-                    for func in 1..=7 {
-                        let reg0 = read_u32(bus, slot, func, 0);
-                        if (reg0 & 0xFFFF) as u16 != 0xFFFF {
-                            check_function(&mut devices, bus, slot, func);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    devices
-}
-
-fn check_function(devices: &mut Vec<PciDevice>, bus: u8, slot: u8, func: u8) {
-    let reg0 = read_u32(bus, slot, func, 0);
-    let reg8 = read_u32(bus, slot, func, 0x08);
-
-    devices.push(PciDevice {
-        bus,
-        slot,
-        func,
-        vendor_id: (reg0 & 0xFFFF) as u16,
-        device_id: (reg0 >> 16) as u16,
-        class: (reg8 >> 24) as u8,
-        subclass: (reg8 >> 16) as u8,
-        prog_if: (reg8 >> 8) as u8,
-    });
 }
