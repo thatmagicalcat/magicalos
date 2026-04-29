@@ -3,22 +3,14 @@
 #include <sys/mman.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <magicalos.h>
 
 void *__dso_handle = 0;
-
-struct fb_info {
-    uint32_t width;
-    uint32_t height;
-    uint32_t pitch;
-    uint16_t bpp;
-    uint8_t memory_model;
-    uint8_t r_sz, r_shift, g_sz, g_shift, b_sz, b_shift;
-};
 
 int main() {
     int fd = open("/dev/fb0", O_RDWR);
     
-    struct fb_info info;
+    FramebufferInfo info;
     read(fd, &info, sizeof(info));
     printf("Screen is %dx%d (%d bpp)\n", info.width, info.height, info.bpp);
     

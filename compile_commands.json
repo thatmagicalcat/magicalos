@@ -3,6 +3,7 @@
     "arguments": [
       "clang",
       "-I/home/thatmagicalcat/Code/rust/magicalos/sysroot/usr/include/",
+      "-I/home/thatmagicalcat/Code/rust/magicalos/",
       "-ffreestanding",
       "-nostdlib",
       "-c",

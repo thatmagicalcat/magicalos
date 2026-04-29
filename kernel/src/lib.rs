@@ -45,22 +45,23 @@ pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
 
 pub fn kernel_entry() {
     kernel::init();
+    println!("Hello, world");
 
     scheduler::spawn(
-        move || elf::run("/home/thatmagicalcat/doom/doomgeneric"),
-        TaskConfig::default().with_cwd("/home/thatmagicalcat/doom".to_string()),
+        move || elf::run("/home/thatmagicalcat/webcam.elf"),
+        TaskConfig::default().with_cwd("/home/thatmagicalcat".to_string()),
     )
     .unwrap();
 
-    scheduler::spawn(
-        || {
-            let mut async_rt = async_rt::Executor::new();
-            async_rt.spawn(drivers::keyboard::handle_keypresses());
-            async_rt.run();
-        },
-        TaskConfig::default().with_priority(scheduler::REALTIME_PRIORITY),
-    )
-    .unwrap();
+    // scheduler::spawn(
+    //     || {
+    //         let mut async_rt = async_rt::Executor::new();
+    //         async_rt.spawn(drivers::keyboard::handle_keypresses());
+    //         async_rt.run();
+    //     },
+    //     TaskConfig::default().with_priority(scheduler::REALTIME_PRIORITY),
+    // )
+    // .unwrap();
 
     scheduler::reschedule();
 
