@@ -21,6 +21,8 @@ pub fn run(sh: &Shell) -> Result<()> {
             virtio
             -enable-kvm
             -debugcon stdio
+            -object memory-backend-file,id=mb1,size=4M,mem-path=/dev/shm/webcam_mem,share=on
+            -device ivshmem-plain,memdev=mb1
             -cpu host
             -display gtk,zoom-to-fit=off,show-menubar=off
             -device isa-debug-exit,iobase=0xf4,iosize=0x04

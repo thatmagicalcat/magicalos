@@ -89,26 +89,6 @@ mod tests {
     use super::*;
 
     #[test_case]
-    fn bench_simple_allocation() {
-        use crate::utils::measure_cycles;
-        let layout = Layout::from_size_align(128, 8).unwrap();
-
-        // warmup
-        let (_, warnup) = measure_cycles(|| unsafe {
-            let ptr = GLOBAL_ALLOCATOR.alloc(layout);
-            GLOBAL_ALLOCATOR.dealloc(ptr, layout);
-        });
-
-        let (_, cycles) = measure_cycles(|| {
-            let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
-            unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
-        });
-
-        crate::dbg_println!("Warmup run [simple_allocation]: {warnup} CPU cycles");
-        crate::dbg_println!("Benchmark [simple_allocation]: {cycles} CPU cycles");
-    }
-
-    #[test_case]
     fn bench_many_allocations() {
         use crate::utils::measure_cycles;
         use core::ptr::null_mut;
@@ -140,6 +120,27 @@ mod tests {
             free_cycles / ITERATIONS as u64
         );
     }
+
+    #[test_case]
+    fn bench_simple_allocation() {
+        use crate::utils::measure_cycles;
+        let layout = Layout::from_size_align(128, 8).unwrap();
+
+        // warmup
+        let (_, warnup) = measure_cycles(|| unsafe {
+            let ptr = GLOBAL_ALLOCATOR.alloc(layout);
+            GLOBAL_ALLOCATOR.dealloc(ptr, layout);
+        });
+
+        let (_, cycles) = measure_cycles(|| {
+            let ptr = unsafe { GLOBAL_ALLOCATOR.alloc(layout) };
+            unsafe { GLOBAL_ALLOCATOR.dealloc(ptr, layout) };
+        });
+
+        crate::dbg_println!("Warmup run [simple_allocation]: {warnup} CPU cycles");
+        crate::dbg_println!("Benchmark [simple_allocation]: {cycles} CPU cycles");
+    }
+
 
     #[test_case]
     fn simple_allocation() {
