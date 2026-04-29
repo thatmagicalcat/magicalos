@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use crate::{kernel, limine_requests::HHDM_REQUEST, memory::FrameAllocator};
+use crate::{kernel, memory::FrameAllocator};
 
 use super::{Frame, PAGE_SIZE};
 
@@ -10,6 +10,7 @@ const FREE: u8 = 0;
 #[derive(Debug)]
 pub struct BitmapFrameAllocator {
     bitmap_slice: &'static mut [u8],
+    ref_counts_slice: &'static mut [u16],
     total_frames: usize,
     usable_frames: usize,
     allocated_frames: usize,
@@ -30,14 +31,13 @@ impl BitmapFrameAllocator {
         let bitmap_array_size = total_frames / 8;
 
         // find a block of memory which is big enough to hold the bitmap slice
-        let blocks = entries
+        let bitmap_block = entries
             .iter()
             .map(|&entry_ptr| unsafe { &*entry_ptr })
             .find(|entry| entry.length as usize >= bitmap_array_size)
-            .expect("Could not find a memory area large enough to hold the bitmap slice");
+            .expect("Could not find a memory area large enough to hold the bitmap array");
 
-        let bitmap_array_start_virt_addr = blocks.base as usize + hhdm_offset;
-
+        let bitmap_array_start_virt_addr = bitmap_block.base as usize + hhdm_offset;
         let bitmap_slice = unsafe {
             core::slice::from_raw_parts_mut(
                 bitmap_array_start_virt_addr as *mut u8,
@@ -47,15 +47,32 @@ impl BitmapFrameAllocator {
 
         bitmap_slice.fill(USED);
 
+        let ref_counts_array_size = total_frames * core::mem::size_of::<u16>();
+        let ref_counts_block = entries
+            .iter()
+            .map(|&entry_ptr| unsafe { &*entry_ptr })
+            .find(|entry| entry.length as usize >= ref_counts_array_size)
+            .expect("Could not find a memory area large enough to hold the ref count array");
+
+        let ref_counts_array_start_virt_addr = ref_counts_block.base as usize + hhdm_offset;
+        let ref_counts_slice = unsafe {
+            core::slice::from_raw_parts_mut(
+                ref_counts_array_start_virt_addr as *mut u16,
+                total_frames,
+            )
+        };
+
+        ref_counts_slice.fill(0); // no active references
+
         log::info!(
-            "Bitmap frame allocator initialized with total frames: {}, bitmap size: {} KiB, bitmap start: {:#X}",
+            "Bitmap frame allocator initialized with total frames: {}, size: {} KiB",
             total_frames,
-            bitmap_array_size / 1024,
-            bitmap_array_start_virt_addr
+            (bitmap_array_size + ref_counts_array_size * 2) / 1024,
         );
 
         let mut allocator = Self {
             total_frames,
+            ref_counts_slice,
             bitmap_slice,
             allocated_frames: 0,
             last_allocated_frame: 0,
@@ -78,13 +95,37 @@ impl BitmapFrameAllocator {
         // areas
 
         // mark the bitmap array itself as used
-        let bitmap_phys_base = blocks.base as usize;
+        let bitmap_phys_base = bitmap_block.base as usize;
         let bitmap_start_frame = bitmap_phys_base / PAGE_SIZE;
         let bitmap_end_frame = (bitmap_phys_base + bitmap_array_size).div_ceil(PAGE_SIZE);
-
         allocator.mark_frames_used(bitmap_start_frame..bitmap_end_frame);
 
+        // mark the ref counts array as used
+        let ref_counts_phys_base = ref_counts_block.base as usize;
+        let ref_counts_start_frame = ref_counts_phys_base / PAGE_SIZE;
+        let ref_counts_end_frame =
+            (ref_counts_phys_base + ref_counts_array_size).div_ceil(PAGE_SIZE);
+        allocator.mark_frames_used(ref_counts_start_frame..ref_counts_end_frame);
+
         allocator
+    }
+
+    pub fn inc_ref_count(&mut self, frame: Frame) {
+        self.ref_counts_slice[frame.0] += 1;
+    }
+
+    pub fn dec_ref_count(&mut self, frame: Frame) -> u16 {
+        assert_ne!(
+            self.ref_counts_slice[frame.0], 0,
+            "Called dec_ref_count on a frame whose ref count is already zero"
+        );
+
+        self.ref_counts_slice[frame.0] -= 1;
+        self.ref_counts_slice[frame.0]
+    }
+
+    pub fn get_ref_count(&self, frame: Frame) -> u16 {
+        self.ref_counts_slice[frame.0]
     }
 
     fn allocate_frame_helper(&mut self, offset: usize) -> Option<Frame> {
@@ -95,9 +136,10 @@ impl BitmapFrameAllocator {
             .filter(|(_, byte)| **byte != !0)
             .map(|(byte_idx, byte)| Frame(byte_idx * 8 + byte.trailing_ones() as usize))
             .next()
-            .inspect(|&Frame(frame_idx)| {
+            .inspect(|&frame @ Frame(frame_idx)| {
                 self.last_allocated_frame = frame_idx + 1;
-                self.mark_frame_used(frame_idx)
+                self.mark_frame_used(frame_idx);
+                self.inc_ref_count(frame);
             })
     }
 
@@ -150,19 +192,22 @@ impl FrameAllocator for BitmapFrameAllocator {
     fn allocate_frame(&mut self) -> Option<Frame> {
         self.allocated_frames += 1;
 
-        self
-            .allocate_frame_helper(self.last_allocated_frame >> 3)
+        self.allocate_frame_helper(self.last_allocated_frame >> 3)
             .or_else(|| self.allocate_frame_helper(0))
     }
 
-    fn deallocate_frame(&mut self, Frame(frame_index): Frame) {
+    fn deallocate_frame(&mut self, frame @ Frame(frame_index): Frame) {
         // log::trace!("deallocate_frame({})", frame_index);
 
         if frame_index >= self.total_frames {
             panic!("Frame index out of bounds: {}", frame_index);
         }
 
-        self.mark_frame_free(frame_index);
+        if self.get_ref_count(frame) == 1 {
+            self.mark_frame_free(frame_index);
+        }
+
+        self.dec_ref_count(frame);
     }
 }
 
