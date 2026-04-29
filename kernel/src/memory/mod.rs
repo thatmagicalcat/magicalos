@@ -13,6 +13,8 @@ mod vmspace;
 pub use vmm::{KERNEL_VMM, init_vmm};
 pub use vmspace::*;
 
+use crate::memory::paging::PhysicalAddress;
+
 pub const PAGE_SIZE: usize = 1024 * 4;
 
 pub static mut GLOBAL_FRAME_ALLOCATOR: Option<Mutex<BitmapFrameAllocator>> = None;
@@ -72,6 +74,12 @@ impl Frame {
 
     pub const fn from_addr(addr: usize) -> Self {
         Self(addr / PAGE_SIZE)
+    }
+}
+
+impl From<PhysicalAddress> for Frame {
+    fn from(value: PhysicalAddress) -> Self {
+        Self(value.0 as _)
     }
 }
 

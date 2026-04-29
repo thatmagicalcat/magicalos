@@ -28,14 +28,11 @@ pub mod syscall;
 pub mod testing;
 pub mod utils;
 
-use alloc::{
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::string::ToString;
 
+use crate::scheduler::TaskConfig;
 #[cfg(test)]
 use crate::testing::test_runner;
-use crate::{io::Read, scheduler::TaskConfig};
 
 #[rustfmt::skip]
 pub(crate) const MIN_LOG_LEVEL: log::LevelFilter = {
@@ -50,8 +47,8 @@ pub fn kernel_entry() {
     kernel::init();
 
     scheduler::spawn(
-        move || elf::run("/home/thatmagicalcat/kbd.elf"),
-        TaskConfig::default().with_cwd("/home/thatmagicalcat/".to_string()),
+        move || elf::run("/home/thatmagicalcat/doom/doomgeneric"),
+        TaskConfig::default().with_cwd("/home/thatmagicalcat/doom".to_string()),
     )
     .unwrap();
 

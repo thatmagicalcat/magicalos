@@ -150,21 +150,8 @@ impl FrameAllocator for BitmapFrameAllocator {
     fn allocate_frame(&mut self) -> Option<Frame> {
         self.allocated_frames += 1;
 
-        // if log::log_enabled!(log::Level::Debug) {
-        //     let allocated_size_kb = self.allocated_frames * PAGE_SIZE / 1024;
-        //     let total_size_kb = self.total_frames * PAGE_SIZE / 1024;
-        //
-        //     log::trace!(
-        //         "allocate_frame(): [{}/{}] ({} KiB used / {} KiB free), last allocated frame: {}",
-        //         self.allocated_frames,
-        //         self.total_frames,
-        //         allocated_size_kb,
-        //         total_size_kb,
-        //         self.last_allocated_frame
-        //     );
-        // }
-
-        self.allocate_frame_helper(self.last_allocated_frame >> 3)
+        self
+            .allocate_frame_helper(self.last_allocated_frame >> 3)
             .or_else(|| self.allocate_frame_helper(0))
     }
 

@@ -2,7 +2,7 @@ use crate::fd::FileDescriptor;
 
 #[unsafe(no_mangle)]
 pub(crate) extern "C" fn sys_read(fd: FileDescriptor, buf: *mut u8, len: usize) -> isize {
-    log::trace!("Enter sysread");
+    log::trace!("Enter sys_read");
 
     let slice = unsafe { core::slice::from_raw_parts_mut(buf, len) };
     crate::fd::read(fd, slice)

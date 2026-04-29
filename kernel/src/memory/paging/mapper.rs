@@ -96,7 +96,7 @@ impl Mapper {
         let p2 = p3.next_table_create(page.p3_idx() as _, allocator);
         let p1 = p2.next_table_create(page.p2_idx() as _, allocator);
 
-        assert!(p1[page.p1_idx()].is_unused());
+        assert!(p1[page.p1_idx()].is_unused(), "Already mapped");
         p1[page.p1_idx()].set(frame, flags | PageTableEntryFlags::PRESENT);
     }
 

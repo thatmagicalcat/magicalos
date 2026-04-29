@@ -257,6 +257,8 @@ fn map_segment(
         flags |= PageTableEntryFlags::NO_EXECUTE;
     }
 
+    log::info!("ELF LOAD: {start_page:#X}..{end_page:#X}, {flags:?}");
+
     task.vmspace
         .insert(
             start_page,

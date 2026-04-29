@@ -26,44 +26,76 @@ pub static KEY_EVENT_QUEUE: Mutex<KeyboardEventQueue> = Mutex::new(KeyboardEvent
 pub struct KeyboardEventDevice;
 
 impl IoInterface for KeyboardEventDevice {
+    // Non-blocking
     fn read(&self, buf: &mut [u8]) -> crate::io::Result<usize> {
         const EVENT_SIZE: usize = core::mem::size_of::<RawKeyEvent>();
-
         if buf.len() < EVENT_SIZE {
             return Err(io::Error::InvalidValue);
         }
-
-        loop {
-            let mut queue = KEY_EVENT_QUEUE.lock();
-
-            if queue.events.is_empty() {
-                queue.add_waiter(scheduler::get_current_task_id());
-                drop(queue);
-
-                scheduler::block_current_task();
-                scheduler::reschedule();
-
-                continue;
-            }
-
-            // how many events can we push?
-            let buffer_event_capacity = buf.len() / EVENT_SIZE;
-            let events_to_read = queue.events.len().min(buffer_event_capacity);
-            let mut bytes_written = 0;
-
-            for _ in 0..events_to_read {
-                // SAFETY: events_to_read <= events.len()
-                let e = queue.events.pop_front().unwrap();
-                let event_slice =
-                    unsafe { core::slice::from_raw_parts(&raw const e as *const u8, EVENT_SIZE) };
-
-                buf[bytes_written..bytes_written + EVENT_SIZE].copy_from_slice(event_slice);
-                bytes_written += EVENT_SIZE;
-            }
-
-            return Ok(bytes_written);
+        let mut queue = KEY_EVENT_QUEUE.lock();
+        
+        //  If there are no key events, return 0 bytes read immediately.
+        if queue.events.is_empty() {
+            return Ok(0);
         }
+
+        // how many events can we push?
+        let buffer_event_capacity = buf.len() / EVENT_SIZE;
+        let events_to_read = queue.events.len().min(buffer_event_capacity);
+        let mut bytes_written = 0;
+
+        for _ in 0..events_to_read {
+            // SAFETY: events_to_read <= events.len()
+            let e = queue.events.pop_front().unwrap();
+            let event_slice =
+                unsafe { core::slice::from_raw_parts(&raw const e as *const u8, EVENT_SIZE) };
+
+            buf[bytes_written..bytes_written + EVENT_SIZE].copy_from_slice(event_slice);
+            bytes_written += EVENT_SIZE;
+        }
+
+        Ok(bytes_written)
     }
+
+    // Blocking
+    // fn read(&self, buf: &mut [u8]) -> crate::io::Result<usize> {
+    //     const EVENT_SIZE: usize = core::mem::size_of::<RawKeyEvent>();
+    //
+    //     if buf.len() < EVENT_SIZE {
+    //         return Err(io::Error::InvalidValue);
+    //     }
+    //
+    //     loop {
+    //         let mut queue = KEY_EVENT_QUEUE.lock();
+    //
+    //         if queue.events.is_empty() {
+    //             queue.add_waiter(scheduler::get_current_task_id());
+    //             drop(queue);
+    //
+    //             scheduler::block_current_task();
+    //             scheduler::reschedule();
+    //
+    //             continue;
+    //         }
+    //
+    //         // how many events can we push?
+    //         let buffer_event_capacity = buf.len() / EVENT_SIZE;
+    //         let events_to_read = queue.events.len().min(buffer_event_capacity);
+    //         let mut bytes_written = 0;
+    //
+    //         for _ in 0..events_to_read {
+    //             // SAFETY: events_to_read <= events.len()
+    //             let e = queue.events.pop_front().unwrap();
+    //             let event_slice =
+    //                 unsafe { core::slice::from_raw_parts(&raw const e as *const u8, EVENT_SIZE) };
+    //
+    //             buf[bytes_written..bytes_written + EVENT_SIZE].copy_from_slice(event_slice);
+    //             bytes_written += EVENT_SIZE;
+    //         }
+    //
+    //         return Ok(bytes_written);
+    //     }
+    // }
 }
 
 #[repr(C)]
@@ -261,13 +293,13 @@ pub async fn handle_keypresses() {
                 DecodedKey::Unicode(character) => match character {
                     // backspace
                     '\x08' if ks.current_line.pop().is_some() => {
-                        // crate::drivers::terminal::backspace()
+                        crate::drivers::terminal::backspace()
                     }
 
                     '\x08' => {}
 
                     '\n' => {
-                        // crate::println!();
+                        crate::println!();
                         ks.current_line.push(b'\n');
                         let v = core::mem::take(&mut ks.current_line);
                         ks.ready_buffer.extend(v);
@@ -279,7 +311,7 @@ pub async fn handle_keypresses() {
                     }
 
                     _ => {
-                        // crate::print!("{character}");
+                        crate::print!("{character}");
                         ks.current_line
                             .extend_from_slice(character.encode_utf8(&mut [0; 4]).as_bytes());
                     }
