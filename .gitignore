@@ -9,5 +9,7 @@ patches
 mlibc
 scripts
 initramfs/home/thatmagicalcat/*.elf
+*.o
 .cache
 .direnv
+.envrc
