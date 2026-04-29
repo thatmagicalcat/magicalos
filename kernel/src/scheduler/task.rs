@@ -17,10 +17,11 @@ use crate::{
     memory::{
         self, Frame, VmSpace,
         paging::{
-            L1, L2, L3, L4, Level, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress,
+            L1, L2, L3, L4, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress,
         },
     },
-    scheduler, synch::Spinlock,
+    scheduler,
+    synch::Spinlock,
 };
 
 pub const STACK_SIZE: usize = 0x3000;
@@ -209,7 +210,6 @@ impl TaskConfig {
     {
         f(&mut self.argv);
         self
-
     }
 
     pub fn with_envp<F>(mut self, f: F) -> Self
@@ -382,27 +382,25 @@ impl DroppableRegion for L4 {
     const DROPPABLE_RANGE: Range<usize> = 0..256;
 }
 
-trait RecursiveDrop<L: Level> {
+trait RecursiveDrop<L> {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L>);
 }
 
 impl<L> RecursiveDrop<L> for L
 where
-    L: TableLevel + Level + DroppableRegion,
+    L: TableLevel + DroppableRegion,
     L::NextLevel: RecursiveDrop<L::NextLevel>,
 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L>) {
         let hhdm_offset = kernel::get_hhdm_offset();
+
+        unsafe { &(&*ptr)[L::DROPPABLE_RANGE] }
+            .iter()
+            .filter(|entry| entry.is_present())
+            .map(|entry| entry.get_physical_address().to_virtual().as_mut_ptr())
+            .map(<L as TableLevel>::NextLevel::recursive_drop);
+
         let physical_frame = Frame::from_addr((ptr as usize - hhdm_offset) as _);
-
-        for entry in unsafe { &(&*ptr)[L::DROPPABLE_RANGE] } {
-            if entry.is_present() {
-                let next_table_ptr: *mut PhysicalPageTable<L::NextLevel> =
-                    (entry.get_physical_address().0 as usize + hhdm_offset) as _;
-                <L as TableLevel>::NextLevel::recursive_drop(next_table_ptr);
-            }
-        }
-
         memory::deallocate_frame(physical_frame);
     }
 }

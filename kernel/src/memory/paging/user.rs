@@ -1,62 +1,102 @@
 use crate::{
-    arch::interrupts,
-    kernel::{self, USER_ENTRY},
+    flush_tlb, kernel,
     memory::{
-        self, Frame,
-        paging::{L4, PageTable, PageTableEntryFlags, PhysicalAddress, VirtualAddress},
+        self,
+        paging::{
+            L1, L4, PageTable, PageTableEntryFlags, PhysicalAddress, PhysicalPageTable, TableLevel,
+        },
     },
-    scheduler, utils,
 };
 
-pub fn create_page_table() -> PhysicalAddress {
-    interrupts::without_interrupts(|| {
-        let hhdm_offset = kernel::get_hhdm_offset();
-        let frame = memory::allocate_frame().expect("oom");
-        let ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+/// Returns the physical address of newly created page table of the forked process
+pub fn fork_parent_page_table() -> PhysicalAddress {
+    let hhdm_offset = kernel::get_hhdm_offset();
+    let child_p4_frame = memory::allocate_frame().expect("oom");
+    let child_p4 = unsafe {
+        &mut *((child_p4_frame.start_address() + hhdm_offset) as *mut PhysicalPageTable<L4>)
+    };
 
-        unsafe {
-            // zero lower half
-            core::ptr::write_bytes(ptr, 0, memory::PAGE_SIZE / 2);
+    let kernel_pml4 = unsafe { &*kernel::get_kernel_page_table().p4 };
+    child_p4[256..512].copy_from_slice(&kernel_pml4[256..512]);
 
-            // now we copy first 256 entires from kernel's page table to this newly created page table
-            // so our kernel doesn't die as soon as we switch the page table
-            let new_pml4: &mut memory::paging::PhysicalPageTable<L4> = &mut *(ptr as *mut _);
-            let kernel_pml4 = &*kernel::get_kernel_page_table().p4;
+    unsafe { core::ptr::write_bytes(child_p4[0..256].as_mut_ptr(), 0, 256) };
 
-            new_pml4[256..512].copy_from_slice(&kernel_pml4[256..512]);
+    let mut active = PageTable::active();
+    let parent_p4 = active.mapper_mut().as_mut();
+
+    for i in 0..256 {
+        if parent_p4[i].is_present() {
+            L4::copy_table_level(child_p4, parent_p4, i);
         }
+    }
 
-        scheduler::set_root_page_table(PhysicalAddress(frame.start_address() as _));
+    flush_tlb![];
 
-        PhysicalAddress(frame.start_address() as _)
-    })
+    child_p4_frame.start_address().into()
 }
 
-/// cr3 should point to the newly created page table by the time this function is called
-pub fn map_user_entry(f: extern "C" fn()) {
-    interrupts::without_interrupts(|| {
-        // get physical frame of the function
-        let mut pt = PageTable::active();
-        let fn_virt_addr = utils::align_down(f as *const () as usize, memory::PAGE_SIZE);
-        let fn_phys_addr = pt
-            .mapper_mut()
-            .translate(VirtualAddress(fn_virt_addr as u64))
-            .expect("Function not mapped in active page table");
-        let fn_frame = Frame::from_addr(fn_phys_addr.0 as _);
+trait CopyTableLevel<L> {
+    fn copy_table_level(
+        child: &mut PhysicalPageTable<L>,
+        parent: &mut PhysicalPageTable<L>,
+        idx: usize,
+    );
+}
 
-        // map USER_ENTRY -> function physical frame with appropriate flags
-        PageTable::active().mapper_mut().map_to(
-            USER_ENTRY,
-            fn_frame,
-            PageTableEntryFlags::WRITABLE | PageTableEntryFlags::USER_ACCESSIBLE,
-            &mut *memory::lock_global_frame_allocator(),
-        );
+impl<L> CopyTableLevel<L> for L
+where
+    L: TableLevel,
+    L::NextLevel: CopyTableLevel<L::NextLevel>,
+{
+    fn copy_table_level(
+        child: &mut PhysicalPageTable<L>,
+        parent: &mut PhysicalPageTable<L>,
+        idx: usize,
+    ) {
+        let entry = parent[idx];
+        if !entry.is_present() {
+            return;
+        }
 
-        PageTable::active().mapper_mut().map_to(
-            VirtualAddress(USER_ENTRY.0 + memory::PAGE_SIZE as u64),
-            Frame(fn_frame.0 + 1),
-            PageTableEntryFlags::WRITABLE | PageTableEntryFlags::USER_ACCESSIBLE,
-            &mut *memory::lock_global_frame_allocator(),
-        );
-    });
+        let next_child_table =
+            child.next_table_create(idx, &mut *memory::lock_global_frame_allocator());
+        let next_parent_table: &mut PhysicalPageTable<L::NextLevel> =
+            unsafe { &mut *entry.get_physical_address().to_virtual().as_mut_ptr() };
+
+        for next_idx in 0..512 {
+            if !next_parent_table[next_idx].is_present() {
+                <L as TableLevel>::NextLevel::copy_table_level(
+                    next_child_table,
+                    next_parent_table,
+                    next_idx,
+                );
+            }
+        }
+    }
+}
+
+impl CopyTableLevel<L1> for L1 {
+    fn copy_table_level(
+        child: &mut PhysicalPageTable<L1>,
+        parent: &mut PhysicalPageTable<L1>,
+        idx: usize,
+    ) {
+        let entry = parent[idx];
+        if !entry.is_present() {
+            return;
+        }
+
+        let mut flags = entry.flags();
+        let frame = entry.get_physical_address();
+
+        if flags.contains(PageTableEntryFlags::WRITABLE) {
+            flags.remove(PageTableEntryFlags::WRITABLE);
+            flags.insert(PageTableEntryFlags::COPY_ON_WRITE);
+
+            parent[idx].set_flags(flags);
+        }
+
+        child[idx].set(frame.into(), flags);
+        memory::lock_global_frame_allocator().inc_ref_count(frame.into());
+    }
 }

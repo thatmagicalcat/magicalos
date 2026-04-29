@@ -16,20 +16,34 @@ use super::PageTableEntry;
 
 pub const ENTRIES_PER_TABLE: usize = 512;
 
-pub trait Level {}
-pub trait TableLevel: Level {
-    type NextLevel: Level;
+pub trait Level {
+    const LEVEL: usize;
 }
 
-pub struct L4;
-pub struct L3;
-pub struct L2;
-pub struct L1;
+pub trait TableLevel {
+    type NextLevel;
+}
 
-impl Level for L4 {}
-impl Level for L3 {}
-impl Level for L2 {}
-impl Level for L1 {}
+pub enum L4 {}
+pub enum L3 {}
+pub enum L2 {}
+pub enum L1 {}
+
+impl Level for L4 {
+    const LEVEL: usize = 4;
+}
+
+impl Level for L3 {
+    const LEVEL: usize = 3;
+}
+
+impl Level for L2 {
+    const LEVEL: usize = 2;
+}
+
+impl Level for L1 {
+    const LEVEL: usize = 1;
+}
 
 impl TableLevel for L4 {
     type NextLevel = L3;
@@ -45,12 +59,16 @@ impl TableLevel for L2 {
 
 /// The page table structure that is used by the CPU
 #[repr(align(4096))]
-pub struct PhysicalPageTable<L: Level> {
+pub struct PhysicalPageTable<L> {
     entries: [PageTableEntry; ENTRIES_PER_TABLE],
     _phantom: PhantomData<L>,
 }
 
-impl<L: Level> PhysicalPageTable<L> {
+impl<L> PhysicalPageTable<L> {
+    pub fn iter(&self) -> core::slice::Iter<PageTableEntry> {
+        self.entries.iter()
+    }
+
     pub fn zero(&mut self) {
         for entry in &mut self.entries {
             entry.set_unused();
@@ -63,11 +81,7 @@ impl<L: TableLevel> PhysicalPageTable<L> {
         let entry = self[index];
 
         if entry.is_present() && !entry.flags().contains(PageTableEntryFlags::HUGE_PAGE) {
-            return Some(
-                entry
-                    .get_physical_address()
-                    .to_virtual(kernel::get_hhdm_offset() as _),
-            );
+            return Some(entry.get_physical_address().to_virtual());
         }
 
         None
@@ -100,10 +114,7 @@ impl<L: TableLevel> PhysicalPageTable<L> {
                 | PageTableEntryFlags::WRITABLE
                 | PageTableEntryFlags::USER_ACCESSIBLE;
 
-            self.entries[index].set(
-                physical_frame,
-                intermediate_flags,
-            );
+            self.entries[index].set(physical_frame, intermediate_flags);
 
             self.next_table_mut(index).unwrap().zero();
         }
@@ -112,7 +123,7 @@ impl<L: TableLevel> PhysicalPageTable<L> {
     }
 }
 
-impl<L: Level> Index<usize> for PhysicalPageTable<L> {
+impl<L> Index<usize> for PhysicalPageTable<L> {
     type Output = PageTableEntry;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -120,7 +131,7 @@ impl<L: Level> Index<usize> for PhysicalPageTable<L> {
     }
 }
 
-impl<L: Level> Index<Range<usize>> for PhysicalPageTable<L> {
+impl<L> Index<Range<usize>> for PhysicalPageTable<L> {
     type Output = [PageTableEntry];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
@@ -128,13 +139,13 @@ impl<L: Level> Index<Range<usize>> for PhysicalPageTable<L> {
     }
 }
 
-impl<L: Level> IndexMut<usize> for PhysicalPageTable<L> {
+impl<L> IndexMut<usize> for PhysicalPageTable<L> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
     }
 }
 
-impl<L: Level> IndexMut<Range<usize>> for PhysicalPageTable<L> {
+impl<L> IndexMut<Range<usize>> for PhysicalPageTable<L> {
     fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
         &mut self.entries[index]
     }
@@ -177,11 +188,7 @@ pub struct PageTable {
 impl PageTable {
     pub fn active() -> Self {
         Self {
-            mapper: Mapper::new(
-                utils::read_cr3()
-                    .to_virtual(kernel::get_hhdm_offset() as _)
-                    .as_mut_ptr(),
-            ),
+            mapper: Mapper::new(utils::read_cr3().to_virtual().as_mut_ptr()),
         }
     }
 
