@@ -15,8 +15,10 @@ new_key_type! { pub struct VfsNodeId; }
 pub enum VfsNode {
     File(VfsFile),
     Directory(VfsDirectory),
+    Device(Arc<dyn IoInterface>),
 }
 
+#[allow(dead_code)]
 impl VfsNode {
     pub const fn is_dir(&self) -> bool {
         matches!(self, Self::Directory(..))
@@ -255,6 +257,7 @@ impl Vfs {
             drop(children_w);
             drop(arena_r);
             self.arena.write().remove(new_file_id); // Rollback!
+
             return Err(io::Error::AlreadyExists);
         }
 
@@ -279,8 +282,14 @@ impl Vfs {
             .as_dir()?;
 
         if let Some(&file_id) = parent_dir.children.read().get(file_name) {
-            let file_node = arena_r.get(file_id).ok_or(io::Error::StaleId)?;
-            return file_node.as_file()?.get_handle(flags);
+            let node = arena_r.get(file_id).ok_or(io::Error::StaleId)?;
+
+            return match node {
+                VfsNode::File(vfs_file) => vfs_file.get_handle(flags),
+                VfsNode::Device(handle) => Ok(Arc::clone(handle)),
+
+                _ => return Err(io::Error::NotAFile),
+            };
         }
 
         drop(arena_r); // for optimistic-allocation
@@ -310,17 +319,19 @@ impl Vfs {
         // check once again, did someone else create it while we dropped the lock?
         if let Some(&existing_file_id) = children_w.get(file_name) {
             drop(children_w);
-            let existing_file_handle = arena_r
-                .get(existing_file_id)
-                .ok_or(io::Error::StaleId)?
-                .as_file()?
-                .get_handle(flags)?;
+
+            let existing_handle = match arena_r.get(existing_file_id).ok_or(io::Error::StaleId)? {
+                VfsNode::File(vfs_file) => vfs_file.get_handle(flags),
+                VfsNode::Device(io_interface) => Ok(Arc::clone(io_interface)),
+
+                _ => return Err(io::Error::NotAFile),
+            };
 
             // rollback optimistic-allocation
             drop(arena_r);
             self.arena.write().remove(new_file_id);
 
-            return Ok(existing_file_handle);
+            return existing_handle;
         }
 
         // commit
@@ -444,14 +455,20 @@ impl Vfs {
                     dbg_print!("├── ");
                 }
 
-                if let VfsNode::Directory(vfs_directory) = &arena[*node_id] {
+                let vfs_node = &arena[*node_id];
+                if let VfsNode::Directory(vfs_directory) = vfs_node {
                     dbg_println!(" {node_name}");
 
                     prefixes.push(is_last);
                     helper(vfs_directory, prefixes, arena);
                     prefixes.pop();
                 } else {
-                    dbg_println!(" {node_name}");
+                    match vfs_node {
+                        VfsNode::File(_) => dbg_println!(" {node_name}"),
+                        VfsNode::Device(_) => dbg_println!(" {node_name}"),
+
+                        VfsNode::Directory(vfs_directory) => unreachable!(),
+                    }
                 }
             }
         }
@@ -466,6 +483,39 @@ impl Vfs {
             &arena_r,
         );
 
+        Ok(())
+    }
+
+    pub fn register_device(
+        &self,
+        cwd: VfsNodeId,
+        path: &str,
+        handle: Arc<dyn IoInterface>,
+    ) -> io::Result<()> {
+        let (file_name, parent_id) = self.split_leaf(cwd, path)?;
+
+        let device_node = VfsNode::Device(handle);
+        let device_node_id = self.arena.write().insert(device_node);
+
+        let arena_r = self.arena.read();
+        let Some(parent_node) = arena_r.get(parent_id) else {
+            drop(arena_r);
+            self.arena.write().remove(device_node_id); // rollback
+            return Err(io::Error::NoSuchFileOrDirectory);
+        };
+
+        let parent_dir = parent_node.as_dir()?;
+        let mut children_w = parent_dir.children.write();
+
+        if children_w.contains_key(file_name) {
+            drop(children_w);
+            drop(arena_r);
+            self.arena.write().remove(device_node_id); // rollback
+
+            return Err(io::Error::AlreadyExists);
+        }
+
+        children_w.insert(String::from(file_name), device_node_id);
         Ok(())
     }
 }
