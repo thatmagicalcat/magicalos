@@ -12,6 +12,7 @@ pub enum Syscall {
     Close,
     Clock,
     Sleep,
+    Seek,
 
     /// Not a valid syscall
     NumSyscalls,
@@ -36,6 +37,7 @@ impl SyscallTable {
                 /* 6 */ close::sys_close as _,
                 /* 7 */ clock::sys_clock as _,
                 /* 8 */ sleep::sys_sleep as _,
+                /* 9 */ seek::sys_seek as _,
             ],
         }
     }

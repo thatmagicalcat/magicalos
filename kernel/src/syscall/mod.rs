@@ -6,6 +6,7 @@ mod close;
 mod empty;
 mod exit;
 mod mmap;
+mod seek;
 mod open;
 mod read;
 mod sleep;
