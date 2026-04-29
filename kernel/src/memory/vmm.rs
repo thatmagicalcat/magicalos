@@ -7,7 +7,7 @@ use crate::{memory::paging::VirtualAddress, utils};
 
 pub static KERNEL_VMM: Mutex<Vmm> = Mutex::new(Vmm::new());
 
-pub const KERNEL_VMM_ADDR_START: usize = 0xFFFF900000000000;
+pub const KERNEL_VMM_ADDR_START: usize = 0xFFFFB00000000000;
 pub const KERNEL_VMM_SIZE: usize = 0x1000000000; // 64 GiB
 
 pub fn init_vmm() {
