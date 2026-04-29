@@ -45,10 +45,10 @@ pub(crate) fn sys_mmap(
     let prot = MmapProt::from_bits_truncate(prot);
     let flags = MemMapFlags::from_bits_truncate(flags);
 
-    if !flags.contains(MemMapFlags::MAP_ANON) {
-        log::error!("NOT IMPLEMENTED: non-anonymous mmap");
-        return -errno::ENOSYS as _;
-    }
+    // if !flags.contains(MemMapFlags::MAP_ANON) {
+    //     log::error!("NOT IMPLEMENTED: non-anonymous mmap");
+    //     return -errno::ENOSYS as _;
+    // }
 
     if flags.contains(MemMapFlags::MAP_FIXED) {
         if addr == 0 {
@@ -62,13 +62,11 @@ pub(crate) fn sys_mmap(
         }
     }
 
-    if flags.contains(MemMapFlags::MAP_SHARED) && flags.contains(MemMapFlags::MAP_PRIVATE) {
-        log::error!("MAP_SHARED and MAP_PRIVATE flags are mutually exclusive");
-        return -errno::EINVAL as _;
-    }
+    if !(flags.contains(MemMapFlags::MAP_SHARED) ^ flags.contains(MemMapFlags::MAP_PRIVATE)) {
+        log::error!(
+            "MAP_SHARED and MAP_PRIVATE are mutually exclusive and either flag must be set"
+        );
 
-    if !flags.contains(MemMapFlags::MAP_SHARED) && !flags.contains(MemMapFlags::MAP_PRIVATE) {
-        log::error!("Either MAP_SHARED or MAP_PRIVATE flag must be set");
         return -errno::EINVAL as _;
     }
 
@@ -78,12 +76,19 @@ pub(crate) fn sys_mmap(
             Err(v) => return v,
         };
 
-        let flags = get_page_table_entry_flags(prot);
         let start = utils::align_down(addr as _, memory::PAGE_SIZE);
+
+        let ty = if flags.contains(MemMapFlags::MAP_ANON) {
+            MappingType::Anonymous
+        } else {
+            MappingType::File { offset, fd }
+        };
+
+        let flags = get_page_table_entry_flags(prot);
 
         if let Err(e) = task
             .vmspace
-            .insert(start, start + length, flags, MappingType::Anonymous)
+            .insert(start, start + length, flags, ty)
         {
             log::error!("Failed to insert VMA entry: {e:?}");
             return -errno::EINVAL as _;

@@ -1,8 +1,13 @@
 use core::alloc::Layout;
 
-use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
+use alloc::{collections::BTreeMap, sync::Arc};
 
-use crate::{kernel::USER_STACK_BOTTOM, memory::paging::PageTableEntryFlags, utils};
+use crate::{
+    fd::FileDescriptor,
+    kernel::USER_STACK_BOTTOM,
+    memory::paging::{PageTableEntryFlags, PhysicalAddress},
+    utils,
+};
 
 pub struct VmSpace {
     /// key = start address
@@ -34,6 +39,10 @@ pub struct Vma {
 #[derive(Clone)]
 pub enum MappingType {
     Anonymous,
+    File {
+        offset: usize,
+        fd: FileDescriptor,
+    },
     Elf {
         data: Arc<[u8]>,
         file_offset: usize,
@@ -46,6 +55,11 @@ impl core::fmt::Debug for MappingType {
         match self {
             Self::Anonymous => write!(f, "Anonymous"),
             Self::Elf { .. } => f.debug_struct("Elf").finish_non_exhaustive(),
+            Self::File { offset, fd } => f
+                .debug_struct("File")
+                .field("offset", offset)
+                .field("fd", fd)
+                .finish(),
         }
     }
 }

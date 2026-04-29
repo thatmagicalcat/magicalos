@@ -3,10 +3,10 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
+    fd,
     kernel::{self, USER_STACK_BOTTOM, USER_STACK_TOP},
-    limine_requests,
     memory::{
-        self, MappingType, Vma, allocate_frame,
+        self, Frame, MappingType, Vma, allocate_frame,
         paging::{PageTable, PageTableEntryFlags, VirtualAddress},
     },
     scheduler, utils,
@@ -146,16 +146,48 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
             scheduler::exit();
         }
 
-        // we only allocate & map one frame at a time
-        let frame = allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
-        let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
-
-        // zero everything out
-        unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
+        if error_code.contains(PageFaultErrorCode::INSTRUCTION_FETCH)
+            && flags.contains(PageTableEntryFlags::NO_EXECUTE)
+        {
+            log::error!(
+                "Segmentation Fault: Attempted to execute non-executable memory at {:#x}",
+                virtual_addr,
+            );
+            scheduler::exit();
+        }
 
         match ty {
+            MappingType::File { offset, fd } => {
+                let page_vaddr = utils::align_down(virtual_addr, memory::PAGE_SIZE);
+                let offset_in_vma = page_vaddr - vma_start_addr;
+                let phys_addr = fd::mmap(fd, offset + offset_in_vma).unwrap();
+                let frame = Frame::from_addr(phys_addr.0 as _);
+
+                PageTable::active().mapper_mut().map_to(
+                    VirtualAddress(page_vaddr as _),
+                    frame,
+                    flags | PageTableEntryFlags::USER_ACCESSIBLE,
+                    &mut *memory::lock_global_frame_allocator(),
+                );
+            }
+
             // we already zeroed-out everything, we don't have to do anything else
-            MappingType::Anonymous => {}
+            MappingType::Anonymous => {
+                // we only allocate & map one frame at a time
+                let frame =
+                    allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
+                let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+
+                // zero everything out
+                unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
+
+                PageTable::active().mapper_mut().map_to(
+                    VirtualAddress(virtual_addr as _),
+                    frame,
+                    flags | PageTableEntryFlags::USER_ACCESSIBLE,
+                    &mut *memory::lock_global_frame_allocator(),
+                );
+            }
 
             MappingType::Elf {
                 ref data,
@@ -164,6 +196,14 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
             } => {
                 // NOTE: we have already zeroed-out the page and it automatically covers .bss
                 // section
+
+                // we only allocate & map one frame at a time
+                let frame =
+                    allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
+                let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+
+                // zero everything out
+                unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
 
                 let page_vaddr = utils::align_down(virtual_addr, memory::PAGE_SIZE);
                 let offset_in_vma = page_vaddr - vma_start_addr;
@@ -181,15 +221,15 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
                         );
                     }
                 }
+
+                PageTable::active().mapper_mut().map_to(
+                    VirtualAddress(virtual_addr as _),
+                    frame,
+                    flags | PageTableEntryFlags::USER_ACCESSIBLE,
+                    &mut *memory::lock_global_frame_allocator(),
+                );
             }
         }
-
-        PageTable::active().mapper_mut().map_to(
-            VirtualAddress(virtual_addr as _),
-            frame,
-            flags | PageTableEntryFlags::USER_ACCESSIBLE,
-            &mut *memory::lock_global_frame_allocator(),
-        );
 
         return;
     }
