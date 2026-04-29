@@ -3,7 +3,7 @@ use core::arch::asm;
 use crate::{
     arch::apic,
     bus::port::Port,
-    fd,
+    fd, flush_tlb,
     kernel::{self, USER_STACK_BOTTOM, USER_STACK_TOP},
     memory::{
         self, Frame, MappingType, Vma, allocate_frame,
@@ -80,6 +80,57 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
         };
     }
 
+    // Copy-on-Write handler
+    if error_code.contains(PageFaultErrorCode::PROTECTION_VIOLATION)
+        && error_code.contains(PageFaultErrorCode::CAUSED_BY_WRITE)
+    {
+        let mut pt = PageTable::active();
+        let p1_entry = pt.mapper_mut().traverse(virtual_addr.into());
+
+        if p1_entry.is_present()
+            && p1_entry
+                .flags()
+                .contains(PageTableEntryFlags::COPY_ON_WRITE)
+        {
+            // SAFETY: unwarp is safe because the entry is present
+            let old_frame = p1_entry.get_pointed_frame().unwrap();
+            let ref_count = memory::lock_global_frame_allocator().get_ref_count(old_frame.into());
+
+            // only owner, just give it the write access
+            if ref_count == 1 {
+                let mut flags = p1_entry.flags();
+                flags.remove(PageTableEntryFlags::COPY_ON_WRITE);
+                flags.insert(PageTableEntryFlags::WRITABLE);
+                p1_entry.set(old_frame, flags);
+            } else {
+                // perform a deep copy
+                log::trace!("Deep CoW");
+
+                memory::lock_global_frame_allocator().dec_ref_count(old_frame);
+                let new_frame = memory::allocate_frame().expect("oom");
+
+                unsafe {
+                    core::ptr::copy_nonoverlapping(
+                        p1_entry
+                            .get_physical_address()
+                            .to_virtual()
+                            .as_mut_ptr::<u8>(),
+                        new_frame.start_address().to_virtual().as_mut_ptr::<u8>(),
+                        memory::PAGE_SIZE,
+                    );
+                }
+
+                let mut flags = p1_entry.flags();
+                flags.remove(PageTableEntryFlags::COPY_ON_WRITE);
+                flags.insert(PageTableEntryFlags::WRITABLE);
+                p1_entry.set(new_frame, flags);
+            }
+
+            flush_tlb!(virtual_addr);
+            return;
+        }
+    }
+
     const RED_ZONE: u64 = 128; // bytes
 
     let user_rsp = stack_frame.rsp as u64;
@@ -93,7 +144,6 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
     // reserved!
 
     let is_valid_stack_growth = virtual_addr as u64 >= (user_rsp.saturating_sub(RED_ZONE));
-    let hhdm_offset = kernel::get_hhdm_offset();
 
     if is_in_stack_range && is_valid_stack_growth {
         // Safe to demand page!
@@ -103,7 +153,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
 
         log::debug!(
             "Demand Paging: {virtual_addr:#X} -> {:#X}",
-            physical_frame.start_address()
+            *physical_frame.start_address()
         );
 
         let mut active = PageTable::active();
@@ -118,7 +168,10 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
 
         unsafe {
             core::ptr::write_bytes(
-                (physical_frame.start_address() + hhdm_offset) as *mut u8,
+                physical_frame
+                    .start_address()
+                    .to_virtual()
+                    .as_mut_ptr::<u8>(),
                 0,
                 crate::memory::PAGE_SIZE,
             )
@@ -134,7 +187,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
             .map(|(start, vma)| (start, vma.clone()))
     });
 
-    if let Some((vma_start_addr, Vma { end, flags, ty })) = vma {
+    if let Some((vma_start_addr, Vma { end: _, flags, ty })) = vma {
         if error_code.contains(PageFaultErrorCode::CAUSED_BY_WRITE)
             && !flags.contains(PageTableEntryFlags::WRITABLE)
         {
@@ -176,7 +229,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
                 // we only allocate & map one frame at a time
                 let frame =
                     allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
-                let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+                let hhdm_ptr = frame.start_address().to_virtual().as_mut_ptr::<u8>();
 
                 // zero everything out
                 unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
@@ -200,7 +253,7 @@ pub extern "C" fn page_fault_handler(stack_frame: &ExceptionStackFrameWithError)
                 // we only allocate & map one frame at a time
                 let frame =
                     allocate_frame().expect("OOM: Failed to allocate frame for page fault handler");
-                let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+                let hhdm_ptr = frame.start_address().to_virtual().as_mut_ptr::<u8>();
 
                 // zero everything out
                 unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };

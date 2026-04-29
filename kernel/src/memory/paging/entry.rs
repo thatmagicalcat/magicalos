@@ -16,6 +16,8 @@ bitflags::bitflags! {
         const GLOBAL          = 1 << 8;
         const NO_EXECUTE      = 1 << 63;
 
+        const COPY_ON_WRITE   = 1 << 9;
+
        /*
         * 9 - 11 & 52 - 62 are available to be used by the OS
         * 12 - 51 physical address
@@ -34,11 +36,11 @@ impl PageTableEntry {
 
     pub fn set(&mut self, frame: Frame, flags: PageTableEntryFlags) {
         assert!(
-            frame.start_address() & !PHYSICAL_ADDRESS_MASK as usize == 0,
+            *frame.start_address() & !PHYSICAL_ADDRESS_MASK == 0,
             "invalid physical frame address"
         );
 
-        self.0 = frame.start_address() as u64 | flags.bits();
+        self.0 = *frame.start_address() | flags.bits();
     }
 
     pub const fn flags(&self) -> PageTableEntryFlags {

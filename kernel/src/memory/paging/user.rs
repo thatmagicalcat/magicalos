@@ -9,11 +9,10 @@ use crate::{
 };
 
 /// Returns the physical address of newly created page table of the forked process
-pub fn fork_parent_page_table() -> PhysicalAddress {
-    let hhdm_offset = kernel::get_hhdm_offset();
+pub fn fork_current_page_table() -> PhysicalAddress {
     let child_p4_frame = memory::allocate_frame().expect("oom");
     let child_p4 = unsafe {
-        &mut *((child_p4_frame.start_address() + hhdm_offset) as *mut PhysicalPageTable<L4>)
+        &mut *(child_p4_frame.start_address().to_virtual().as_mut_ptr::<PhysicalPageTable<L4>>())
     };
 
     let kernel_pml4 = unsafe { &*kernel::get_kernel_page_table().p4 };
@@ -64,7 +63,7 @@ where
             unsafe { &mut *entry.get_physical_address().to_virtual().as_mut_ptr() };
 
         for next_idx in 0..512 {
-            if !next_parent_table[next_idx].is_present() {
+            if next_parent_table[next_idx].is_present() {
                 <L as TableLevel>::NextLevel::copy_table_level(
                     next_child_table,
                     next_parent_table,
@@ -87,16 +86,19 @@ impl CopyTableLevel<L1> for L1 {
         }
 
         let mut flags = entry.flags();
-        let frame = entry.get_physical_address();
+        
+        // SAFETY: we've already checked if entry is present or not
+        // so this unwrap is safe
+        let frame = entry.get_pointed_frame().unwrap();
 
         if flags.contains(PageTableEntryFlags::WRITABLE) {
             flags.remove(PageTableEntryFlags::WRITABLE);
             flags.insert(PageTableEntryFlags::COPY_ON_WRITE);
 
-            parent[idx].set_flags(flags);
+            parent[idx].set(frame, flags);
         }
 
-        child[idx].set(frame.into(), flags);
-        memory::lock_global_frame_allocator().inc_ref_count(frame.into());
+        child[idx].set(frame, flags);
+        memory::lock_global_frame_allocator().inc_ref_count(frame);
     }
 }
