@@ -8,6 +8,7 @@ mod exit;
 mod mmap;
 mod open;
 mod read;
+mod sleep;
 mod write;
 
 pub use table::*;
