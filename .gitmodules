@@ -1,6 +1,0 @@
-[submodule "limine/Limine"]
-	path = limine/Limine
-	url = https://github.com/limine-bootloader/limine
-[submodule "flanterm/Flanterm"]
-	path = flanterm/Flanterm
-	url = https://github.com/Mintsuki/Flanterm

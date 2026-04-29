@@ -16,8 +16,8 @@ fn main() {
         .expect("Couldn't write bindings!");
 
     let sources = [
-        "./Flanterm/src/flanterm.c",
-        "./Flanterm/src/flanterm_backends/fb.c",
+        "./Flanterm/flanterm.c",
+        "./Flanterm/flanterm_backends/fb.c",
     ];
 
     let objects = sources.map(|src| format!("{}/{}.o", out_dir, src.replace("/", "_")));

@@ -1,2 +1,2 @@
-#include "Flanterm/src/flanterm.h"
-#include "Flanterm/src/flanterm_backends/fb.h"
+#include "Flanterm/flanterm.h"
+#include "Flanterm/flanterm_backends/fb.h"
