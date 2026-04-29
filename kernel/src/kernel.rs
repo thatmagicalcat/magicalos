@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use crate::arch::*;
 use crate::limine_requests::*;
 use crate::memory::paging::{PageTable, VirtualAddress};
@@ -86,12 +88,14 @@ pub fn init() {
     drivers::keyboard::init();
 
     let pci_devices = bus::pci::enumerate();
+
     log::info!("Found {} PCI devices:", pci_devices.len());
     pci_devices
         .iter()
         .for_each(|device| log::info!("  - {device}"));
 
     let mut pci_driver_manager = bus::pci::PciDriverManager::new();
+    pci_driver_manager.add_and_probe(&pci_devices, Box::new(drivers::ivshmem::IvShMemDriver));
 
     scheduler::init();
 

@@ -86,6 +86,8 @@ pub fn init_vfs() {
         .expect("failed to register keyboard device");
     VFS.register_device(dev, "fb0", Arc::new(drivers::terminal::FramebufferDevice))
         .expect("failed to register framebuffer device");
+    VFS.register_device(dev, "video0", Arc::new(drivers::webcam_shm::WebcamDevice))
+        .expect("failed to register webcam device");
 
     log::info!("Kernel VFS Tree:");
 
