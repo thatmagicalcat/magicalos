@@ -48,6 +48,10 @@ impl IoInterface for GenericStdin {
             scheduler::reschedule();
         }
     }
+
+    fn seek(&self, _offset: crate::fs::SeekFrom) -> io::Result<usize> {
+        Err(io::Error::IllegalSeek)
+    }
 }
 
 #[derive(Debug)]
@@ -65,6 +69,10 @@ impl IoInterface for GenericStdout {
 
         Ok(buf.len())
     }
+
+    fn seek(&self, _offset: crate::fs::SeekFrom) -> io::Result<usize> {
+        Err(io::Error::IllegalSeek)
+    }
 }
 
 #[derive(Debug)]
@@ -72,15 +80,19 @@ pub(crate) struct GenericStderr;
 
 impl IoInterface for GenericStderr {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        // let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
-        // log::warn!("write(generic_stderr): {s}");
-        // core::mem::forget(s);
+        let s = unsafe { String::from_raw_parts(buf.as_ptr() as *mut _, buf.len(), buf.len()) };
+        log::warn!("write(generic_stderr): {s}");
+        core::mem::forget(s);
 
-        // drivers::terminal::TERMINAL
-        //     .lock()
-        //     .as_mut()
-        //     .unwrap()
-        //     .write_bytes(buf);
+        drivers::terminal::TERMINAL
+            .lock()
+            .as_mut()
+            .unwrap()
+            .write_bytes(buf);
         Ok(buf.len())
+    }
+
+    fn seek(&self, _offset: crate::fs::SeekFrom) -> io::Result<usize> {
+        Err(io::Error::IllegalSeek)
     }
 }

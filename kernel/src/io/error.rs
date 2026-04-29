@@ -17,6 +17,7 @@ pub enum Error {
     AlreadyExists = errno::EEXIST as _,
     StaleId = errno::ESTALE as _,
     DirectoryNotEmpty = errno::ENOTEMPTY as _,
+    IllegalSeek = errno::ESPIPE as _, 
 }
 
 impl core::fmt::Display for Error {
