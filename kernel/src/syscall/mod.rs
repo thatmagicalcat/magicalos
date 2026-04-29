@@ -1,6 +1,7 @@
 mod table;
 
 mod arch_prctl;
+mod clock;
 mod close;
 mod empty;
 mod exit;
