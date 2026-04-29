@@ -7,7 +7,7 @@ use crate::{
         OpenOptions,
         data_handle::{DataHandle, DynamicData, StaticData},
     },
-    io::{self, IoInterface},
+    io::{self, IoInterface}
 };
 
 new_key_type! { pub struct VfsNodeId; }
@@ -467,7 +467,7 @@ impl Vfs {
                         VfsNode::File(_) => dbg_println!(" {node_name}"),
                         VfsNode::Device(_) => dbg_println!(" {node_name}"),
 
-                        VfsNode::Directory(vfs_directory) => unreachable!(),
+                        VfsNode::Directory(_) => unreachable!(),
                     }
                 }
             }

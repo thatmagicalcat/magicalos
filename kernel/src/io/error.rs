@@ -11,6 +11,7 @@ pub enum Error {
     BadFileDescriptor = errno::EBADF as _,
     NotADirectory = errno::ENOTDIR as _,
     NotAFile = errno::EISDIR as _,
+    NoSuchDevice = errno::ENODEV as _,
     TooManyOpenFiles = errno::EMFILE as _,
     WriteAllEOF = errno::EPIPE as _,
     AlreadyExists = errno::EEXIST as _,

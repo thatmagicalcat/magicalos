@@ -5,27 +5,29 @@ mod error;
 use alloc::{string::String, vec::Vec};
 pub use error::Error;
 
-use crate::fs::SeekFrom;
+use crate::{fs::SeekFrom, memory::paging::PhysicalAddress};
 
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub trait IoInterface: Sync + Send + Debug {
     /// Attempts to read `len` bytes from the object pointed by the descriptor
     fn read(&self, _buf: &mut [u8]) -> Result<usize> {
-        log::error!("No read implementation");
         Err(Error::NotImplemented)
     }
 
     /// Attempts to write `len` bytes to the object referenced by the descriptor
     fn write(&self, _buf: &[u8]) -> Result<usize> {
-        log::error!("No write implementation");
         Err(Error::NotImplemented)
     }
 
     /// Attempts to change the current position of the file descriptor by `offset` bytes, in the
     /// direction specified by `seek_from`
     fn seek(&self, _offset: SeekFrom) -> Result<usize> {
-        log::error!("No seek implementation");
+        Err(Error::NotImplemented)
+    }
+
+    /// Returns the physical address of the underlying data
+    fn mmap(&self, offset: usize) -> Result<PhysicalAddress> {
         Err(Error::NotImplemented)
     }
 
@@ -111,7 +113,7 @@ pub trait Write {
                 } else {
                     panic!("write_fmt failed without an underlying write error")
                 }
-            },
+            }
         }
     }
 }

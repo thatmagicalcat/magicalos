@@ -2,10 +2,83 @@ use core::{alloc::Layout, ffi, ptr};
 
 use alloc::alloc::{alloc, dealloc};
 
+use crate::io::{self, IoInterface};
 use crate::limine_requests::*;
+use crate::memory::paging::PhysicalAddress;
 use crate::synch::Spinlock;
 
 pub static TERMINAL: Spinlock<Option<Terminal>> = Spinlock::new(None);
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct FbInfo {
+    pub width: u32,
+    pub height: u32,
+    pub pitch: u32,
+    pub bpp: u16,
+    pub memory_model: u8,
+    pub red_mask_size: u8,
+    pub red_mask_shift: u8,
+    pub green_mask_size: u8,
+    pub green_mask_shift: u8,
+    pub blue_mask_size: u8,
+    pub blue_mask_shift: u8,
+}
+
+#[derive(Debug)]
+pub struct FramebufferDevice;
+impl IoInterface for FramebufferDevice {
+    fn read(&self, buf: &mut [u8]) -> io::Result<usize> {
+        let fb = unsafe {
+            let response = &*FRAMEBUFFER_REQUEST.response;
+            if response.framebuffers.is_null() {
+                return Err(io::Error::InvalidValue);
+            }
+
+            &**response.framebuffers
+        };
+
+        let info = FbInfo {
+            width: fb.width as u32,
+            height: fb.height as u32,
+            pitch: fb.pitch as u32,
+            bpp: fb.bpp,
+            memory_model: fb.memory_model,
+            red_mask_size: fb.red_mask_size,
+            red_mask_shift: fb.red_mask_shift,
+            green_mask_size: fb.green_mask_size,
+            green_mask_shift: fb.green_mask_shift,
+            blue_mask_size: fb.blue_mask_size,
+            blue_mask_shift: fb.blue_mask_shift,
+        };
+
+        let info_size = core::mem::size_of::<FbInfo>();
+        if buf.len() < info_size {
+            return Err(io::Error::InvalidValue);
+        }
+
+        let info_bytes =
+            unsafe { core::slice::from_raw_parts(&info as *const _ as *const u8, info_size) };
+        buf[..info_size].copy_from_slice(info_bytes);
+
+        Ok(info_size)
+    }
+
+    fn mmap(&self, offset: usize) -> io::Result<PhysicalAddress> {
+        let memmap = unsafe { &*MEMMAP.response };
+        let entries =
+            unsafe { core::slice::from_raw_parts(memmap.entries, memmap.entry_count as usize) };
+
+        let fb_phys_base = entries
+            .iter()
+            .map(|e| unsafe { **e })
+            .find(|e| e.type_ == limine::LIMINE_MEMMAP_FRAMEBUFFER as u64)
+            .map(|e| e.base as usize)
+            .ok_or(io::Error::InvalidValue)?; // return error if not found
+
+        Ok(PhysicalAddress((fb_phys_base + offset) as u64))
+    }
+}
 
 pub fn backspace() {
     use flanterm::*;
@@ -49,8 +122,6 @@ impl Terminal {
 
         Self { ctx }
     }
-
-    pub fn backspace(&mut self) {}
 
     pub const fn inner(&mut self) -> *mut flanterm::flanterm_context {
         self.ctx
@@ -98,7 +169,7 @@ impl core::fmt::Write for Terminal {
 }
 
 fn flanterm_console_init() -> *mut flanterm::flanterm_context {
-    let fb = unsafe {
+    let fb: &limine::limine_framebuffer = unsafe {
         assert!(!FRAMEBUFFER_REQUEST.response.is_null());
 
         let response = &*FRAMEBUFFER_REQUEST.response;

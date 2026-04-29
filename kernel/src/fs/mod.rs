@@ -79,10 +79,13 @@ pub fn init_vfs() {
         }
     }
 
-    // insert device(s)
+    // register device(s)
     let dev = VFS.mkdir(root, "/dev").expect("failed to create /dev/");
+
     VFS.register_device(dev, "kbd", Arc::new(drivers::keyboard::KeyboardEventDevice))
         .expect("failed to register keyboard device");
+    VFS.register_device(dev, "fb0", Arc::new(drivers::terminal::FramebufferDevice))
+        .expect("failed to register framebuffer device");
 
     log::info!("Kernel VFS Tree:");
 
