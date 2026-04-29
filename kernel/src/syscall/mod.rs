@@ -3,6 +3,7 @@ mod table;
 mod arch_prctl;
 mod clock;
 mod close;
+mod fork;
 mod empty;
 mod exit;
 mod mmap;

@@ -14,6 +14,7 @@ pub enum Syscall {
     Sleep,
     Seek,
     Mkdir,
+    Fork,
 
     /// Not a valid syscall
     NumSyscalls,
@@ -40,6 +41,7 @@ impl SyscallTable {
                 /* 8 */ sleep::sys_sleep as _,
                 /* 9 */ seek::sys_seek as _,
                 /* 10 */ mkdir::sys_mkdir as _,
+                /* 11 */ fork::sys_fork as _,
             ],
         }
     }
