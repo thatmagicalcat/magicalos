@@ -48,7 +48,7 @@ pub fn kernel_entry() {
     println!("Hello, world");
 
     scheduler::spawn(
-        move || elf::run("/home/thatmagicalcat/webcam.elf"),
+        move || elf::run("/home/thatmagicalcat/fork.elf"),
         TaskConfig::default().with_cwd("/home/thatmagicalcat".to_string()),
     )
     .unwrap();

@@ -62,13 +62,13 @@ macro_rules! flush_tlb {
     [] => {
         let value: u64;
         unsafe {
-            asm! {
+            core::arch::asm! {
                 "mov {}, cr3",
                 out(reg) value,
                 options(nomem, nostack, preserves_flags)
             }
 
-            asm! {
+            core::arch::asm! {
                 "mov cr3, {}",
                 in(reg) value,
                 options(nomem, nostack, preserves_flags)

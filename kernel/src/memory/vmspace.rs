@@ -9,6 +9,7 @@ use crate::{
     utils,
 };
 
+#[derive(Clone)]
 pub struct VmSpace {
     /// key = start address
     map: BTreeMap<usize, Vma>,

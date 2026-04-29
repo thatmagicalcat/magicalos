@@ -1,10 +1,13 @@
-use crate::memory::{self, Frame, FrameAllocator};
+use crate::memory::{
+    self, Frame, FrameAllocator,
+    paging::{L3, PageTableEntry},
+};
 use core::arch::asm;
 
 use super::{
-    PhysicalAddress, VirtualAddress,
+    VirtualAddress,
     entry::PageTableEntryFlags,
-    table::{ENTRIES_PER_TABLE, L4, PhysicalPageTable},
+    table::{L4, PhysicalPageTable},
 };
 
 // use crate::memory::{Frame, FrameAllocator};
@@ -29,57 +32,43 @@ impl Mapper {
         unsafe { &mut *self.p4 }
     }
 
-    pub fn translate(&mut self, virt_addr: VirtualAddress) -> Option<PhysicalAddress> {
-        let p3 = self.as_mut().next_table(virt_addr.p4_idx() as _);
-        let huge_pages = || {
-            p3.and_then(|p3| {
-                let p3_entry = &p3[virt_addr.p3_idx()];
-
-                // 1 GiB page?!?! what the fuck?
-                if let Some(start_frame) = p3_entry.get_pointed_frame()
-                    && p3_entry.flags().contains(PageTableEntryFlags::HUGE_PAGE)
-                {
-                    // address must be 1 GiB aligned
-                    assert!(start_frame.start_address() % (1 << 30) == 0);
-                    return Some(Frame(
-                        start_frame.0 + virt_addr.p2_idx() * ENTRIES_PER_TABLE + virt_addr.p1_idx(),
-                    ));
-                }
-
-                if let Some(p2) = p3.next_table(virt_addr.p3_idx()) {
-                    let p2_entry = &p2[virt_addr.p2_idx()];
-
-                    // 2 MiB page
-                    if let Some(start_frame) = p2_entry.get_pointed_frame()
-                        && p2_entry.flags().contains(PageTableEntryFlags::HUGE_PAGE)
-                    {
-                        // address must be 2 MiB aligned
-                        assert!(start_frame.start_address() % (1 << 21) == 0);
-                        return Some(Frame(start_frame.0 + virt_addr.p1_idx()));
-                    }
-                }
-
-                None
-            })
+    /// Traverse the page table and return the PageTableEntry of the
+    /// P1 (or P3/P2 if huge page bit is set) table
+    #[allow(clippy::deref_addrof)]
+    pub fn traverse(&mut self, virt_addr: VirtualAddress) -> &mut PageTableEntry {
+        let p3_ptr: *mut PhysicalPageTable<L3> = unsafe {
+            &mut *(self
+                .as_mut()
+                .next_table_mut(virt_addr.p4_idx() as _)
+                .expect("this shouldn't fail") as *mut _)
         };
 
-        p3.and_then(|p3| p3.next_table(virt_addr.p3_idx()))
-            .and_then(|p2| p2.next_table(virt_addr.p2_idx()))
-            .and_then(|p1| p1[virt_addr.p1_idx()].get_pointed_frame())
-            .or_else(huge_pages)
-            .map(|frame| PhysicalAddress(frame.start_address() as u64))
-    }
+        let p3 = unsafe { &mut *p3_ptr };
+        let huge_pages = || {
+            if p3[virt_addr.p3_idx()]
+                .flags()
+                .contains(PageTableEntryFlags::HUGE_PAGE)
+            {
+                return Some(unsafe { &mut *&raw mut p3[virt_addr.p3_idx()] });
+            }
 
-    pub fn map_if_unmapped<A: FrameAllocator>(
-        &mut self,
-        page: VirtualAddress,
-        frame: Frame,
-        flags: PageTableEntryFlags,
-        allocator: &mut A,
-    ) {
-        if self.translate(page).is_none() {
-            self.map_to(page, frame, flags, allocator);
-        }
+            if let Some(p2) = p3.next_table_mut(virt_addr.p3_idx())
+                && p2[virt_addr.p2_idx()]
+                    .flags()
+                    .contains(PageTableEntryFlags::HUGE_PAGE)
+            {
+                return Some(unsafe { &mut *&raw mut p2[virt_addr.p2_idx()] });
+            }
+
+            None
+        };
+
+        let p3 = unsafe { &mut *p3_ptr };
+        p3.next_table_mut(virt_addr.p3_idx())
+            .and_then(|p2| p2.next_table_mut(virt_addr.p2_idx()))
+            .map(|p1| &mut p1[virt_addr.p1_idx()])
+            .or_else(huge_pages)
+            .expect("this shouldn't fail...")
     }
 
     pub fn map_to<A: FrameAllocator>(
@@ -109,7 +98,13 @@ impl Mapper {
         self.map_to(page, frame, flags, allocator)
     }
 
-    pub fn map_range<A: FrameAllocator>(&mut self, start_page: VirtualAddress, num_pages: usize, flags: PageTableEntryFlags, allocator: &mut A) {
+    pub fn map_range<A: FrameAllocator>(
+        &mut self,
+        start_page: VirtualAddress,
+        num_pages: usize,
+        flags: PageTableEntryFlags,
+        allocator: &mut A,
+    ) {
         for page_idx in 0..num_pages as u64 {
             let page = VirtualAddress(start_page.0 + page_idx * memory::PAGE_SIZE as u64);
             self.map(page, flags, allocator);
@@ -118,7 +113,7 @@ impl Mapper {
 
     #[must_use]
     pub fn unmap(&mut self, page: VirtualAddress) -> Frame {
-        assert!(self.translate(page).is_some());
+        // assert!(self.traverse(page).is_some());
 
         let p1 = self
             .as_mut()
@@ -160,7 +155,7 @@ mod tests {
             &mut *lock_global_frame_allocator(),
         );
 
-        let phys = mapper.translate(virt).unwrap();
+        let phys = mapper.traverse(virt).unwrap();
 
         assert_eq!(phys.0, frame.start_address() as u64, "Translation failed");
 

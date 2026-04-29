@@ -212,13 +212,13 @@ pub fn init_logging() {
                 if full_line {
                     // EVERYTHING stays red
                     dbg_println!(
-                        "{level_color}[{: <5}] @ \x1b[3m<{file}:{line}>\x1b[23m {}{reset}",
+                        "{level_color}[{: <5}] \x1b[3m<{file}:{line}>\x1b[23m {}{reset}",
                         record.level(),
                         record.args(),
                     );
                 } else {
                     dbg_println!(
-                        "{level_color}[{: <5}]{reset} @ {meta_color}\x1b[3m<{file}:{line}>\x1b[23m{reset} {level_color}{}{reset}",
+                        "{level_color}[{: <5}]{reset} {meta_color}\x1b[3m<{file}:{line}>\x1b[23m{reset} {level_color}{}{reset}",
                         record.level(),
                         record.args(),
                     );

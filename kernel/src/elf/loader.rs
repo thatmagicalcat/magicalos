@@ -30,9 +30,8 @@ pub struct StackBuilder {
 impl StackBuilder {
     pub fn setup_user_stack(usr_stack_top: usize) -> Self {
         let stack_page_addr = usr_stack_top - memory::PAGE_SIZE;
-        let hhdm_offset = kernel::get_hhdm_offset();
         let frame = memory::allocate_frame().expect("oom");
-        let hhdm_ptr = (frame.start_address() + hhdm_offset) as *mut u8;
+        let hhdm_ptr = frame.start_address().to_virtual().as_mut_ptr();
 
         // zero out everything
         unsafe { core::ptr::write_bytes(hhdm_ptr, 0, memory::PAGE_SIZE) };
@@ -154,7 +153,7 @@ impl StackBuilder {
     }
 
     /// Returns the user-space virtual address of the pushed u64
-    fn push_qword(&mut self, v: u64) -> usize {
+    const fn push_qword(&mut self, v: u64) -> usize {
         self.rsp -= core::mem::size_of::<u64>();
         let offset = self.rsp - self.stack_page_addr;
         unsafe { core::ptr::write_unaligned(self.hhdm_ptr.add(offset).cast(), v) };
@@ -163,7 +162,7 @@ impl StackBuilder {
     }
 
     /// Returns the user-space virtual address of pushed bytes
-    fn push_bytes(&mut self, bytes: &[u8]) -> usize {
+    const fn push_bytes(&mut self, bytes: &[u8]) -> usize {
         self.rsp -= bytes.len();
         let offset = self.rsp - self.stack_page_addr;
         unsafe { copy_nonoverlapping(bytes.as_ptr(), self.hhdm_ptr.add(offset), bytes.len()) };

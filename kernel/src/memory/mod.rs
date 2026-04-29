@@ -64,8 +64,8 @@ impl Frame {
         (self.0 * PAGE_SIZE) as *mut u8
     }
 
-    pub const fn start_address(&self) -> usize {
-        self.0 * PAGE_SIZE
+    pub const fn start_address(&self) -> PhysicalAddress {
+        PhysicalAddress((self.0 * PAGE_SIZE) as _)
     }
 
     pub const fn end_address(&self) -> usize {
@@ -79,7 +79,7 @@ impl Frame {
 
 impl From<PhysicalAddress> for Frame {
     fn from(value: PhysicalAddress) -> Self {
-        Self(value.0 as _)
+        Self::from_addr(value.0 as _)
     }
 }
 

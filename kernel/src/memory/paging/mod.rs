@@ -7,7 +7,9 @@ pub use entry::*;
 pub use mapper::*;
 pub use table::*;
 
-use core::ops::Deref;
+use core::{fmt::Display, ops::Deref};
+
+use crate::kernel;
 
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,21 +19,27 @@ pub struct PhysicalAddress(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VirtualAddress(pub u64);
 
-impl<T> From<T> for PhysicalAddress
-where
-    T: Into<u64>,
-{
-    fn from(value: T) -> Self {
-        Self(value.into())
+impl From<u64> for PhysicalAddress {
+    fn from(value: u64) -> Self {
+        Self(value)
     }
 }
 
-impl<T> From<T> for VirtualAddress
-where
-    T: Into<u64>,
-{
-    fn from(value: T) -> Self {
-        Self(value.into())
+impl From<usize> for PhysicalAddress {
+    fn from(value: usize) -> Self {
+        Self(value as _)
+    }
+}
+
+impl From<u64> for VirtualAddress {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
+
+impl From<usize> for VirtualAddress {
+    fn from(value: usize) -> Self {
+        Self(value as _)
     }
 }
 
@@ -60,11 +68,11 @@ impl VirtualAddress {
         self.0 as *mut T
     }
 
-    pub unsafe fn as_ref<'a, T>(&self) -> &'a T {
+    pub const unsafe fn as_ref<'a, T>(&self) -> &'a T {
         unsafe { &*self.as_ptr() }
     }
 
-    pub unsafe fn as_mut<'a, T>(&self) -> &'a mut T {
+    pub const unsafe fn as_mut<'a, T>(&self) -> &'a mut T {
         unsafe { &mut *self.as_mut_ptr() }
     }
 
@@ -82,6 +90,10 @@ impl VirtualAddress {
 
     pub const fn p1_idx(&self) -> usize {
         (self.0 as usize >> 12) & 0o777
+    }
+
+    pub fn to_physical(&self) -> PhysicalAddress {
+        (self.0 - kernel::get_hhdm_offset() as u64).into()
     }
 }
 
@@ -106,8 +118,8 @@ impl PhysicalAddress {
     //     Self(addr)
     // }
 
-    pub fn to_virtual(&self, hhdm_offest: u64) -> VirtualAddress {
-        (self.0 + hhdm_offest).into()
+    pub fn to_virtual(&self) -> VirtualAddress {
+        (self.0 + kernel::get_hhdm_offset() as u64).into()
     }
 }
 
