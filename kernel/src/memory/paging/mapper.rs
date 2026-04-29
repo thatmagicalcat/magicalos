@@ -1,4 +1,4 @@
-use crate::memory::{Frame, FrameAllocator};
+use crate::memory::{self, Frame, FrameAllocator};
 use core::arch::asm;
 
 use super::{
@@ -107,6 +107,13 @@ impl Mapper {
     {
         let frame = allocator.allocate_frame().expect("out of memory");
         self.map_to(page, frame, flags, allocator)
+    }
+
+    pub fn map_range<A: FrameAllocator>(&mut self, start_page: VirtualAddress, num_pages: usize, flags: PageTableEntryFlags, allocator: &mut A) {
+        for page_idx in 0..num_pages as u64 {
+            let page = VirtualAddress(start_page.0 + page_idx * memory::PAGE_SIZE as u64);
+            self.map(page, flags, allocator);
+        }
     }
 
     #[must_use]
