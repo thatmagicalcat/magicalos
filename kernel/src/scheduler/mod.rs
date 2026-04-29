@@ -16,6 +16,8 @@ mod task;
 
 pub use task::*;
 
+pub use sched::new_task_id;
+
 static mut SCHEDULER: Option<UnsafeCell<Scheduler>> = None;
 
 pub(crate) fn init() {
@@ -86,6 +88,12 @@ pub fn get_current_task_id() -> TaskId {
 
 pub(crate) fn set_root_page_table(physical_address: PhysicalAddress) {
     unsafe { (*SCHEDULER.as_ref().unwrap().get()).set_root_page_table(physical_address) }
+}
+
+pub(crate) fn enqueue_task(task: Task) {
+    unsafe {
+        (*SCHEDULER.as_ref().unwrap().get()).enqueue_task(task);
+    }
 }
 
 pub(crate) fn get_root_page_table() -> PhysicalAddress {

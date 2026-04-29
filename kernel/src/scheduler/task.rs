@@ -16,9 +16,7 @@ use crate::{
     kernel,
     memory::{
         self, Frame, VmSpace,
-        paging::{
-            L1, L2, L3, L4, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress,
-        },
+        paging::{L1, L2, L3, L4, PhysicalAddress, PhysicalPageTable, TableLevel, VirtualAddress},
     },
     scheduler,
     synch::Spinlock,
@@ -33,6 +31,7 @@ pub const NORMAL_PRIORITY: TaskPriority = TaskPriority(16);
 pub const LOW_PRIORITY: TaskPriority = TaskPriority(0);
 
 #[repr(C, align(16))]
+#[derive(Clone)]
 pub(crate) struct FpuState(pub [u8; 512]);
 
 impl Default for FpuState {
@@ -172,6 +171,7 @@ pub(crate) struct TaskStack {
     ist_buffer: [u8; INTERRUPT_STACK_SIZE],
 }
 
+// TODO: make fd map, vmspace, fpu_state Copy on Write
 #[repr(align(64))]
 pub(crate) struct Task {
     pub id: TaskId,
@@ -185,6 +185,7 @@ pub(crate) struct Task {
     pub cfg: TaskConfig,
 }
 
+#[derive(Clone)]
 pub struct TaskConfig {
     pub priority: TaskPriority,
     pub cwd: String,
@@ -398,7 +399,7 @@ where
             .iter()
             .filter(|entry| entry.is_present())
             .map(|entry| entry.get_physical_address().to_virtual().as_mut_ptr())
-            .map(<L as TableLevel>::NextLevel::recursive_drop);
+            .for_each(<L as TableLevel>::NextLevel::recursive_drop);
 
         let physical_frame = Frame::from_addr((ptr as usize - hhdm_offset) as _);
         memory::deallocate_frame(physical_frame);
@@ -407,7 +408,16 @@ where
 
 impl RecursiveDrop<L1> for L1 {
     fn recursive_drop(ptr: *mut PhysicalPageTable<L1>) {
-        memory::deallocate_frame(Frame::from_addr(ptr as usize - kernel::get_hhdm_offset()));
+        let table = unsafe { &*ptr };
+
+        table[L1::DROPPABLE_RANGE]
+            .iter()
+            .filter_map(|entry| entry.get_pointed_frame())
+            .for_each(memory::deallocate_frame);
+
+        memory::deallocate_frame(Frame::from_addr(
+            (ptr as usize - kernel::get_hhdm_offset()) as _,
+        ));
     }
 }
 

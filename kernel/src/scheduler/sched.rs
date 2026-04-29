@@ -1,6 +1,4 @@
-use core::{
-    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
-};
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use alloc::{
     collections::{BTreeMap, VecDeque},
@@ -8,10 +6,16 @@ use alloc::{
 };
 
 use crate::{
-    arch::interrupts, fd::FileDescriptor, io::{self, IoInterface}, memory::paging::{PhysicalAddress, VirtualAddress}, scheduler::{
+    arch::interrupts,
+    fd::FileDescriptor,
+    io::{self, IoInterface},
+    memory::paging::{PhysicalAddress, VirtualAddress},
+    scheduler::{
         TaskConfig,
         task::{NUM_PRIORITIES, TaskStatus},
-    }, synch::Spinlock, utils
+    },
+    synch::Spinlock,
+    utils,
 };
 
 use super::task::{PriorityTaskQueue, Task, TaskId};
@@ -19,6 +23,10 @@ use super::task::{PriorityTaskQueue, Task, TaskId};
 static TASKID_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// Virtual address of the last used FpuState
 static FPU_OWNER: AtomicUsize = AtomicUsize::new(0);
+
+pub fn new_task_id() -> TaskId {
+    TaskId::new(TASKID_COUNTER.fetch_add(1, Ordering::SeqCst))
+}
 
 type ArcTask = Arc<Spinlock<Task>>;
 
@@ -32,7 +40,7 @@ pub(crate) struct Scheduler {
 
 impl Scheduler {
     pub fn new() -> Scheduler {
-        let task_id = TaskId::new(TASKID_COUNTER.fetch_add(1, Ordering::SeqCst));
+        let task_id = new_task_id();
         let idle_task = Arc::new(Spinlock::new(Task::new_idle(task_id)));
         let mut tasks = BTreeMap::new();
 
@@ -51,8 +59,7 @@ impl Scheduler {
         log::trace!("Saving/Loading FPU state");
 
         interrupts::without_interrupts(|| {
-            let current_fpu_state_ptr =
-                &raw mut self.current_task.lock().fpu_state.0 as usize;
+            let current_fpu_state_ptr = &raw mut self.current_task.lock().fpu_state.0 as usize;
             let last_fpu_owner_state_ptr = FPU_OWNER.load(Ordering::Relaxed);
 
             unsafe { core::arch::asm!("clts", options(nomem, nostack, preserves_flags)) };
@@ -93,6 +100,14 @@ impl Scheduler {
 
     pub fn get_current_interrupt_stack(&self) -> VirtualAddress {
         interrupts::without_interrupts(|| self.current_task.lock().stack.interrupt_top())
+    }
+
+    pub fn enqueue_task(&mut self, task: Task) {
+        let id = task.id;
+        let arc_task = Arc::new(Spinlock::new(task));
+
+        self.tasks.insert(id, Arc::clone(&arc_task));
+        self.ready_queue.push(&arc_task);
     }
 
     pub fn spawn<F>(&mut self, f: F, cfg: TaskConfig) -> Result<TaskId, &'static str>
@@ -185,7 +200,6 @@ impl Scheduler {
         });
 
         self.reschedule();
-
         unreachable!("reschedule failed?")
     }
 
