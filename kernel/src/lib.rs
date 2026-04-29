@@ -50,29 +50,7 @@ pub fn kernel_entry() {
     kernel::init();
 
     scheduler::spawn(
-        || {
-            arch::hpet::HPET
-                .get()
-                .unwrap()
-                .busy_wait(core::time::Duration::from_secs(1));
-            fs::VFS.tree_lsdir(fs::VFS.get_root_node_id()).unwrap();
-
-            // message.txt is created by message.txt
-            let mut f = fs::File::open("/home/thatmagicalcat/message.txt").expect("failed to open");
-            let mut buf = [0; 100];
-            let len = f.read(&mut buf).unwrap();
-
-            log::info!(
-                "message.txt content: {}",
-                core::str::from_utf8(&buf[..len]).unwrap()
-            );
-        },
-        TaskConfig::default(),
-    )
-    .unwrap();
-
-    scheduler::spawn(
-        move || elf::run("/home/thatmagicalcat/fs.elf"),
+        move || elf::run("/home/thatmagicalcat/kbd.elf"),
         TaskConfig::default().with_cwd("/home/thatmagicalcat/".to_string()),
     )
     .unwrap();

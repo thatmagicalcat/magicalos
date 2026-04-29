@@ -3,7 +3,7 @@ use crate::{errno, fs};
 
 #[unsafe(no_mangle)]
 pub(crate) extern "C" fn sys_open(path: *const i8, flags: u32, _mode: u32) -> isize {
-    log::debug!("Enter sys_open");
+    log::trace!("Enter sys_open");
 
     let Ok(path_str) = (unsafe { CStr::from_ptr(path).to_str() }) else {
         return -errno::EINVAL as _;

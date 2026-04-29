@@ -21,7 +21,7 @@ pub fn setup_for_kernel(
     let project_root = project_root();
 
     // inputs
-    let limine = project_root.join("limine/Limine/bin");
+    let limine = project_root.join("limine/Limine");
     let initramfs = project_root.join("initramfs");
     let wallpaper_src = project_root.join("wallpaper.png");
     let limine_config_src = project_root.join("limine.conf");

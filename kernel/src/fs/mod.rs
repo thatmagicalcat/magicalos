@@ -3,7 +3,7 @@
 use core::fmt::Debug;
 
 use crate::{
-    dbg_println,
+    dbg_println, drivers,
     fd::FileDescriptor,
     fs::tar::{TarEntiresIterator, TarEntry},
     io::{self},
@@ -16,6 +16,7 @@ mod file;
 pub mod tar;
 mod vfs;
 
+use alloc::sync::Arc;
 use vfs::*;
 
 pub use file::*;
@@ -49,7 +50,7 @@ fn load_ramfs() -> TarEntiresIterator<'static> {
     TarEntiresIterator::new(ramfs_module_raw)
 }
 
-pub fn init_ramfs() {
+pub fn init_vfs() {
     log::info!("Initializing VFS...");
 
     let root = VFS.get_root_node_id();
@@ -77,6 +78,11 @@ pub fn init_ramfs() {
             TarEntry::Other { .. } => log::error!("Other tar entry types are not supported yet :("),
         }
     }
+
+    // insert device(s)
+    let dev = VFS.mkdir(root, "/dev").expect("failed to create /dev/");
+    VFS.register_device(dev, "kbd", Arc::new(drivers::keyboard::KeyboardEventDevice))
+        .expect("failed to register keyboard device");
 
     log::info!("Kernel VFS Tree:");
 

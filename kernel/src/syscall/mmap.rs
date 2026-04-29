@@ -34,7 +34,7 @@ pub(crate) fn sys_mmap(
     fd: i32,
     offset: usize,
 ) -> isize {
-    log::debug!("Enter sys_mmap");
+    log::trace!("Enter sys_mmap");
 
     let length = if length == 0 {
         return -errno::EINVAL as _;
