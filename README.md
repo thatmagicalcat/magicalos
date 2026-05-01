@@ -13,6 +13,9 @@
 
 This project was built for the sake of learning how operating systems work under the hood and having fun bringing a machine to life!
 
+## MagicalOS running doom:
+![doom](screenshots/doom.png)
+
 ## Current Features
 
 What makes MagicalOS magical?
@@ -36,6 +39,8 @@ good question... even idk, but here's the progress so far xD
 - **File system**:
   - In memory Virtual File System (VFS)
 - **ELF Loading**: The kernel can load and run ELF binaries, but still there is a lot of work that has to be done.
+
+And oh, it can run doom!
 
 ## Getting Started
 
@@ -79,14 +84,10 @@ I'm constantly trying to add magic, here's the rough roadmap of features I want 
 - [x] **Phase 2: Multitasking** (Context switching, Scheduler, Kernel threads)
 - [x] **Phase 3: Storage** (VFS)
 - [x] **Phase 4: User Space** (Syscalls, Processes, ELF loader)
-- [ ] **Phase 5: libc and Userland** (C library, Shell, Basic utilities)
-    - [ ] Port mlibc
-    - [ ] Port bash
-
-Misc:
-- [ ] Make async runtime work with task scheduler
-- [ ] fix ELF loading
+- [x] **Phase 5: libc and Userland** (C library, Shell, Basic utilities)
+    - [x] Port mlibc
+- [x] **Run doom**
 
 ## Acknowledgements
 
-- Learning from incredible resources and projects like the [OSDev Wiki](https://wiki.osdev.org/), [OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/), [RedoxOS](https://gitlab.redox-os.org/redox-os/kernel), [AuroraOS](https://codeberg.org/aurora-org/AuroraOS), [Intel SDM](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html/) (probably not as incredible but this is all i have TT) and Philipp Oppermann's [Writing an OS in Rust](https://os.phil-opp.com/).
+- Learning from incredible resources and projects like the [OSDev Wiki](https://wiki.osdev.org/), [RedoxOS](https://gitlab.redox-os.org/redox-os/kernel), [eduOS](https://rwth-os.github.io/eduOS/), [Intel SDM](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html/) (probably not as incredible but this is all i have TT) and Philipp Oppermann's [Writing an OS in Rust](https://os.phil-opp.com/).

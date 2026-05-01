@@ -9,5 +9,4 @@ patches
 mlibc
 scripts
 initramfs/home/thatmagicalcat/*.elf
-sysroot
 .cache
