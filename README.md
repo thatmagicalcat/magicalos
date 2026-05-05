@@ -91,3 +91,8 @@ I'm constantly trying to add magic, here's the rough roadmap of features I want 
 ## Acknowledgements
 
 - Learning from incredible resources and projects like the [OSDev Wiki](https://wiki.osdev.org/), [RedoxOS](https://gitlab.redox-os.org/redox-os/kernel), [eduOS](https://rwth-os.github.io/eduOS/), [Intel SDM](https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html/) (probably not as incredible but this is all i have TT) and Philipp Oppermann's [Writing an OS in Rust](https://os.phil-opp.com/).
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=thatmagicalcat/magicalos&type=date&legend=top-left)](https://www.star-history.com/?repos=thatmagicalcat%2Fmagicalos&type=date&legend=top-left)
